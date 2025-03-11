@@ -124,6 +124,20 @@
             color: #999;
             text-align: center;
         }
+
+        .notification-details {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #666;
+        }
+        .notification-details > div {
+            padding: 2px 0;
+        }
+        .notification-details span {
+            color: #0084ff;
+            font-weight: bold;
+        }
+
     </style>
 </head>
 <body>
@@ -178,5 +192,18 @@
     </div>
 
     <script src="popup.js"></script>
+    <!-- 在 export-section div 中添加 -->
+    <!-- 在导出进度条区域添加 -->
+    <div id="export-progress" style="display: none; margin-top: 10px;">
+        <div style="background-color: #f0f0f0; border-radius: 4px; overflow: hidden;">
+            <div id="progress-inner" style="background-color: #0084ff; height: 4px; width: 0%; transition: width 0.3s;"></div>
+        </div>
+        <div id="progress-text" style="font-size: 12px; color: #666; margin-top: 5px; text-align: center;">
+            准备导出...
+        </div>
+        <button id="stop-export" style="display: none; margin-top: 10px; width: 100%; padding: 8px; background-color: #ff4d4f; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            停止导出
+        </button>
+    </div>
 </body>
-</html> 
+</html>

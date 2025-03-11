@@ -19,6 +19,15 @@
     "storage",
     "scripting"
   ],
+  "content_scripts": [
+    {
+      "matches": ["https://*.zhihu.com/*"],
+      "js": [
+        "lib/jszip.min.js",
+        "js/dump_answers.js"
+      ]
+    }
+  ],
   "host_permissions": [
     "https://*.zhihu.com/*"
   ],

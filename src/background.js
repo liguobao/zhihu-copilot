@@ -21,31 +21,15 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // URL 相关函数
+// 删除这些不再使用的 URL 相关函数
 function getZhihuUrl() {
   return "https://www.zhihu.com";
 }
 
-function getMsgUrl() {
-  return getZhihuUrl() + '/api/v4/notifications/v2/vote_thank?limit=100';
-}
-
-function getVoteThankUrl() {
-  const timeStamp = +new Date();
-  return getZhihuUrl() + '/api/v4/notifications/v2/vote_thank?limit=100&offset=' + timeStamp;
-}
-
-function getDefaultUrl() {
-  return getZhihuUrl() + '/api/v4/notifications/v2/default?limit=100';
-}
-
-function getFollowUrl() {
-  return getZhihuUrl() + '/api/v4/notifications/v2/follow?limit=100';
-}
-
 function isZhihuUrl(url) {
-  // 判断 URL 是否以知乎前缀开头
   return url.indexOf(getZhihuUrl()) == 0;
 }
+
 
 // 加载动画 - 使用徽章文本代替
 function LoadingAnimation() {
@@ -173,78 +157,45 @@ function getOptions() {
 function getInboxCount(onSuccess, onError) {
   responseArray = [0, 0, 0];
   
-  // 添加计数器来跟踪完成的请求
-  let completedRequests = 0;
-  let hasError = false;
-  
-  // 设置总体超时
-  const timeoutId = setTimeout(() => {
-    if (completedRequests < 3) {
-      hasError = true;
-      handleError();
+  fetch('https://www.zhihu.com/api/v4/me?include=ad_type,available_message_types,default_notifications_count,follow_notifications_count,vote_thank_notifications_count,messages_count', {
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
     }
-  }, requestTimeout);
-  
-  function handleError() {
-    if (hasError) return;
-    hasError = true;
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    return response.json();
+  })
+  .then(data => {
+    // 更新消息数组
+    responseArray[0] = data.default_notifications_count || 0;
+    responseArray[1] = data.follow_notifications_count || 0;
+    responseArray[2] = data.vote_thank_notifications_count || 0;
     
+    // 私信数量单独处理
+    const messagesCount = data.messages_count || 0;
+    if (messagesCount > 0) {
+      responseArray[0] += messagesCount;
+    }
+    
+    fillLocalStorage();
+  })
+  .catch(error => {
+    console.error('Fetch error:', error);
+    handleError();
+  });
+
+  function handleError() {
     chrome.storage.local.get(['requestFailureCount'], (result) => {
       const newCount = (result.requestFailureCount || 0) + 1;
       chrome.storage.local.set({ requestFailureCount: newCount });
-      clearTimeout(timeoutId);
       if (onError) onError();
     });
   }
-
-  function fillUnReadMsgCount(remoteURL, msgIndex) {
-    const maxRetries = 3;
-    let retryCount = 0;
-
-    function tryFetch() {
-      fetch(remoteURL, {
-        credentials: 'include',  // 添加凭证
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'  // 添加XHR标识
-        }
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(responseJSON => {
-        const responseData = responseJSON["data"];
-        const unReadMsgCount = responseData.filter(item => !item.is_read).length;
-        responseArray[msgIndex] = unReadMsgCount;
-        
-        completedRequests++;
-        if (completedRequests === 3) {
-          clearTimeout(timeoutId);
-          fillLocalStorage();
-        }
-      })
-      .catch(error => {
-        console.error('Fetch error:', error);
-        if (retryCount < maxRetries) {
-          retryCount++;
-          console.log(`Retrying... Attempt ${retryCount} of ${maxRetries}`);
-          setTimeout(tryFetch, 1000 * retryCount); // 递增重试延迟
-        } else {
-          handleError();
-        }
-      });
-    }
-
-    tryFetch();
-  }
-
-  // 发起三个请求
-  fillUnReadMsgCount(getDefaultUrl(), 0);
-  fillUnReadMsgCount(getFollowUrl(), 1);
-  fillUnReadMsgCount(getVoteThankUrl(), 2);
 }
 
 function fillLocalStorage() {
