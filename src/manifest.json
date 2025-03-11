@@ -16,7 +16,8 @@
     "alarms",
     "notifications",
     "webNavigation",
-    "storage"
+    "storage",
+    "scripting"
   ],
   "host_permissions": [
     "https://*.zhihu.com/*"

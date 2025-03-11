@@ -112,7 +112,7 @@ function updateIcon() {
     } else {
       chrome.action.setIcon({ path: "img/zhihu_logged_in.png" });
       chrome.action.setBadgeBackgroundColor({ color: [208, 0, 24, 255] });
-      chrome.action.setBadgeText({ text: count != 0 ? count.toString() : "" });
+      chrome.action.setBadgeText({ text: count.toString() });
     }
   });
 }
@@ -141,9 +141,6 @@ function startRequest(params) {
   function stopLoadingAnimation() {
     if (params && params.showLoadingAnimation) loadingAnimation.stop();
   }
-
-  if (params && params.showLoadingAnimation)
-    loadingAnimation.start();
 
   getInboxCount(
     function(count) {
@@ -176,11 +173,11 @@ function getOptions() {
 function getInboxCount(onSuccess, onError) {
   responseArray = [0, 0, 0];
   
-  // 创建一个计数器来跟踪完成的请求
+  // 添加计数器来跟踪完成的请求
   let completedRequests = 0;
   let hasError = false;
   
-  // 设置超时
+  // 设置总体超时
   const timeoutId = setTimeout(() => {
     if (completedRequests < 3) {
       hasError = true;
@@ -188,7 +185,6 @@ function getInboxCount(onSuccess, onError) {
     }
   }, requestTimeout);
   
-  // 错误处理
   function handleError() {
     if (hasError) return;
     hasError = true;
@@ -196,73 +192,78 @@ function getInboxCount(onSuccess, onError) {
     chrome.storage.local.get(['requestFailureCount'], (result) => {
       const newCount = (result.requestFailureCount || 0) + 1;
       chrome.storage.local.set({ requestFailureCount: newCount });
-      
       clearTimeout(timeoutId);
       if (onError) onError();
     });
   }
-  
-  // 成功处理
-  function handleSuccess(count) {
-    if (hasError) return;
-    
-    chrome.storage.local.set({ requestFailureCount: 0 });
-    clearTimeout(timeoutId);
-    if (onSuccess) onSuccess(count);
+
+  function fillUnReadMsgCount(remoteURL, msgIndex) {
+    const maxRetries = 3;
+    let retryCount = 0;
+
+    function tryFetch() {
+      fetch(remoteURL, {
+        credentials: 'include',  // 添加凭证
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'  // 添加XHR标识
+        }
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(responseJSON => {
+        const responseData = responseJSON["data"];
+        const unReadMsgCount = responseData.filter(item => !item.is_read).length;
+        responseArray[msgIndex] = unReadMsgCount;
+        
+        completedRequests++;
+        if (completedRequests === 3) {
+          clearTimeout(timeoutId);
+          fillLocalStorage();
+        }
+      })
+      .catch(error => {
+        console.error('Fetch error:', error);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`Retrying... Attempt ${retryCount} of ${maxRetries}`);
+          setTimeout(tryFetch, 1000 * retryCount); // 递增重试延迟
+        } else {
+          handleError();
+        }
+      });
+    }
+
+    tryFetch();
   }
-  
-  // 填充未读消息计数
+
+  // 发起三个请求
   fillUnReadMsgCount(getDefaultUrl(), 0);
   fillUnReadMsgCount(getFollowUrl(), 1);
   fillUnReadMsgCount(getVoteThankUrl(), 2);
-  
-  function fillUnReadMsgCount(remoteURL, msgIndex) {
-    try {
-      console.log("remoteURL:" + remoteURL);
-      
-      fetch(remoteURL)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-          }
-          return response.json();
-        })
-        .then(responseJSON => {
-          const responseData = responseJSON["data"];
-          const unReadMsgCount = responseData.filter((item) => !item.is_read).length;
-          responseArray[msgIndex] = unReadMsgCount;
-          
-          completedRequests++;
-          if (completedRequests === 3) {
-            fillLocalStorage();
-          }
-        })
-        .catch(error => {
-          //console.error(chrome.i18n.getMessage("zhihucheck_exception", error.toString()));
-          handleError();
-        });
-    } catch (e) {
-      console.error(chrome.i18n.getMessage("zhihucheck_exception", e.toString()));
-      handleError();
-    }
-  }
-  
-  async function fillLocalStorage() {
-    chrome.storage.local.get(['lastResponseArray'], async (result) => {
-      const lastResponseArray = result.lastResponseArray;
-      const hasChanged = lastResponseArray !== responseArray.toString();
-      
+}
+
+function fillLocalStorage() {
+  chrome.storage.local.get(['lastResponseArray'], (result) => {
+    const lastResponseArray = result.lastResponseArray || '';
+    if (lastResponseArray == responseArray.toString()) {
+      console.log('nothing changed, break my heart;');
+      chrome.storage.local.set({ hasChanged: false });
+    } else {
       chrome.storage.local.set({
         lastResponseArray: responseArray.toString(),
-        hasChanged: hasChanged,
+        hasChanged: true,
         msg1: responseArray[0],
         msg2: responseArray[1],
         msg3: responseArray[2]
       });
-      
-      const currentOptions = await getOptions();
-      permission = 7; // 重置权限
-      
+    }
+    
+    getOptions().then(currentOptions => {
       if (currentOptions[0] == 0) {
         permission = permission - 1;
       }
@@ -272,65 +273,42 @@ function getInboxCount(onSuccess, onError) {
       if (currentOptions[2] == 0) {
         permission = permission - 4;
       }
-      
-      let count = 0;
-      let msg1 = 0, msg2 = 0, msg3 = 0;
-      
       switch (permission) {
         case 7:
-          count = responseArray[0] + responseArray[1] + responseArray[2];
-          msg1 = responseArray[0];
-          msg2 = responseArray[1];
-          msg3 = responseArray[2];
+          updateUnreadCount(responseArray[0] + responseArray[1] + responseArray[2]);
+          updateTitle(responseArray[0], responseArray[1], responseArray[2]);
           break;
         case 6:
-          count = responseArray[1] + responseArray[2];
-          msg1 = 0;
-          msg2 = responseArray[1];
-          msg3 = responseArray[2];
+          updateUnreadCount(responseArray[1] + responseArray[2]);
+          updateTitle(0, responseArray[1], responseArray[2]);
           break;
         case 5:
-          count = responseArray[0] + responseArray[2];
-          msg1 = responseArray[0];
-          msg2 = 0;
-          msg3 = responseArray[2];
+          updateUnreadCount(responseArray[0] + responseArray[2]);
+          updateTitle(responseArray[0], 0, responseArray[2]);
           break;
         case 4:
-          count = responseArray[2];
-          msg1 = 0;
-          msg2 = 0;
-          msg3 = responseArray[2];
+          updateUnreadCount(responseArray[2]);
+          updateTitle(0, 0, responseArray[2]);
           break;
         case 3:
-          count = responseArray[0] + responseArray[1];
-          msg1 = responseArray[0];
-          msg2 = responseArray[1];
-          msg3 = 0;
+          updateUnreadCount(responseArray[0] + responseArray[1]);
+          updateTitle(responseArray[0], responseArray[1], 0);
           break;
         case 2:
-          count = responseArray[1];
-          msg1 = 0;
-          msg2 = responseArray[1];
-          msg3 = 0;
+          updateUnreadCount(responseArray[1]);
+          updateTitle(0, responseArray[1], 0);
           break;
         case 1:
-          count = responseArray[0];
-          msg1 = responseArray[0];
-          msg2 = 0;
-          msg3 = 0;
+          updateUnreadCount(responseArray[0]);
+          updateTitle(responseArray[0], 0, 0);
           break;
         case 0:
-          count = 0;
-          msg1 = 0;
-          msg2 = 0;
-          msg3 = 0;
+          updateUnreadCount(0);
+          updateTitle(0);
           break;
       }
-      
-      handleSuccess(count);
-      updateTitle(msg1, msg2, msg3, hasChanged);
     });
-  }
+  });
 }
 
 // 更新未读计数
@@ -339,10 +317,6 @@ function updateUnreadCount(count) {
     const changed = result.unreadCount != count;
     chrome.storage.local.set({ unreadCount: count });
     updateIcon();
-    if (changed) {
-      // 在 Service Worker 中不能使用动画，只更新图标
-      updateIcon();
-    }
   });
 }
 
@@ -385,23 +359,6 @@ function updateTitle(msg1, msg2, msg3, hasChanged) {
         priority: 2
       });
       
-      // 获取通知关闭超时
-      chrome.storage.local.get(['notificationCloseTimeout'], (result) => {
-        let notificationCloseTimeout = result.notificationCloseTimeout;
-        if (!notificationCloseTimeout) {
-          notificationCloseTimeout = 10;
-          chrome.storage.local.set({ notificationCloseTimeout: 10 });
-        }
-        
-        const timeout = notificationCloseTimeout * 1000;
-        console.log('notificationCloseTimeout', timeout);
-        
-        if (timeout != 0) {
-          setTimeout(() => {
-            chrome.notifications.clear('zhihu-notification');
-          }, timeout);
-        }
-      });
       
       console.log("start notification");
     }
@@ -452,13 +409,6 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
-// 监听通知点击事件
-chrome.notifications.onClicked.addListener((notificationId) => {
-  if (notificationId === 'zhihu-notification') {
-    goToInbox();
-    chrome.notifications.clear(notificationId);
-  }
-});
 
 // 监听导航事件
 chrome.webNavigation.onDOMContentLoaded.addListener((details) => {
@@ -501,10 +451,23 @@ function onWatchdog() {
   });
 }
 
+// 在background.js中添加
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    if (request.action === "refreshMessages") {
+        // 调用原来的startRequest函数
+        startRequest({
+            scheduleRequest: false,
+            showLoadingAnimation: true
+        });
+        sendResponse({success: true});
+    }
+    return true; // 保持消息通道开放以进行异步响应
+});
+
 // 初始化时更新图标
 updateIcon();
 
 // 创建优化的 Canvas 上下文
 function createOptimizedCanvasContext(canvas) {
   return canvas.getContext('2d', { willReadFrequently: true });
-} 
+}
