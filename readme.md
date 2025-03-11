@@ -1,4 +1,9 @@
-# zhihu-helper/
+# Zhihu Copilot
+
+## 功能
+
+- 自动刷新收件箱未读消息数
+- 支持导出回答、文章、想法
 
 ├── manifest.json
 ├── background.html
