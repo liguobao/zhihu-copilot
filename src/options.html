@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>知乎助手设置</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #0084ff;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            background-color: #f6f6f6;
+            border-radius: 5px;
+        }
+        .section h2 {
+            margin-top: 0;
+            font-size: 18px;
+            color: #444;
+        }
+        .option {
+            margin-bottom: 15px;
+        }
+        .option label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        .option input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        .option input[type="number"] {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        .save-btn {
+            background-color: #0084ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 15px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .save-btn:hover {
+            background-color: #0077e6;
+        }
+        .status {
+            margin-top: 10px;
+            color: #0084ff;
+            font-weight: bold;
+            display: none;
+        }
+        .icon {
+            display: inline-block;
+            margin-right: 5px;
+            font-style: normal;
+        }
+    </style>
+</head>
+<body>
+    <h1>知乎助手设置</h1>
+    
+    <div class="section">
+        <h2>消息通知设置</h2>
+        <div class="option">
+            <label>
+                <input type="checkbox" id="notify-default"> <i class="icon">🔔</i> 接收默认消息通知
+            </label>
+        </div>
+        <div class="option">
+            <label>
+                <input type="checkbox" id="notify-follow"> <i class="icon">👥</i> 接收关注消息通知
+            </label>
+        </div>
+        <div class="option">
+            <label>
+                <input type="checkbox" id="notify-vote"> <i class="icon">👍</i> 接收赞同感谢消息通知
+            </label>
+        </div>
+        <div class="option">
+            <label>
+                <input type="checkbox" id="show-desktop-notification"> <i class="icon">💬</i> 显示桌面通知
+            </label>
+        </div>
+        <div class="option">
+            <label><i class="icon">⏱️</i> 通知显示时间（秒）：
+                <input type="number" id="notification-timeout" min="0" max="60">
+            </label>
+            <div>设置为0表示不自动关闭</div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>刷新设置</h2>
+        <div class="option">
+            <label><i class="icon">🔄</i> 检查消息间隔（分钟）：
+                <input type="number" id="poll-interval" min="1" max="60">
+            </label>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>格式设置</h2>
+        <div class="option">
+            <label><i class="icon">📄</i> 格式：</label>
+            <select id="export-format">
+                <option value="json">JSON</option>
+                <option value="txt">纯文本</option>
+                <option value="html">HTML</option>
+            </select>
+        </div>
+    </div>
+    
+    <button id="save-settings" class="save-btn">保存设置</button>
+    <div id="status" class="status">设置已保存！</div>
+    
+    <script src="options.js"></script>
+</body>
+</html> 

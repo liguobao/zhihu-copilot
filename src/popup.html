@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>知乎Copilot</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            width: 320px;
+            padding: 10px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+        }
+        .header img {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+        }
+        .header h1 {
+            font-size: 18px;
+            margin: 0;
+            color: #0084ff;
+        }
+        .refresh-btn {
+            background-color: #0084ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .refresh-btn:hover {
+            background-color: #0077e6;
+        }
+        .menu-item {
+            display: block;
+            padding: 10px 15px;
+            margin: 5px 0;
+            background-color: #f6f6f6;
+            border-radius: 8px;
+            color: #444;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .menu-item:hover {
+            background-color: #e6e6e6;
+            transform: translateY(-1px);
+        }
+        .menu-item i {
+            margin-right: 8px;
+            color: #0084ff;
+        }
+        .notification {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f0f7ff;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #666;
+        }
+        .notification-count {
+            font-weight: bold;
+            color: #0084ff;
+        }
+        .export-section {
+            margin-top: 15px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        .export-section h2 {
+            font-size: 14px;
+            margin: 0 0 10px 0;
+            color: #444;
+        }
+        .export-options {
+            margin-bottom: 10px;
+        }
+        .export-option {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .export-option:hover {
+            background-color: #f0f0f0;
+        }
+        .export-option input {
+            margin-right: 8px;
+        }
+        .export-option label {
+            font-size: 13px;
+            color: #444;
+        }
+        .export-btn {
+            background-color: #0084ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 15px;
+            font-size: 13px;
+            cursor: pointer;
+            width: 100%;
+        }
+        .export-btn:hover {
+            background-color: #0077e6;
+        }
+        .footer {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <img src="img/zhihu-logo_48.png" alt="知乎Copilot">
+            <h1><a href="https://www.zhihu.com" target="_blank" style="text-decoration: none; color: #0084ff;">知乎Copilot</a></h1>
+        </div>
+        <button id="refresh-messages" class="refresh-btn">刷新消息</button>
+    </div>
+    
+    <div class="notification">
+        <div id="notification-text">
+            您有 <span class="notification-count" id="unread-count">0</span> 条未读消息
+        </div>
+    </div>
+    
+    <a href="#" class="menu-item" id="go-to-inbox">
+        <i>📬</i> 前往消息中心
+    </a>
+    
+    <a href="https://zhuanlan.zhihu.com/write" class="menu-item" id="write-article">
+        <i>✍️</i> 开始写专栏
+    </a>
+    
+    <a href="https://www.zhihu.com/creator" class="menu-item" id="creator-center">
+        <i>🎯</i> 创作中心
+    </a>
+    
+    <div class="export-section">
+        <h2>内容导出</h2>
+        <div class="export-options">
+            <div class="export-option">
+                <input type="checkbox" id="export-answers-check" checked>
+                <label for="export-answers-check">📝 回答</label>
+            </div>
+            <div class="export-option">
+                <input type="checkbox" id="export-articles-check">
+                <label for="export-articles-check">📄 专栏文章</label>
+            </div>
+            <div class="export-option">
+                <input type="checkbox" id="export-ideas-check">
+                <label for="export-ideas-check">💡 想法</label>
+            </div>
+        </div>
+        <button id="start-export" class="export-btn">开始导出</button>
+    </div>
+    
+    <div class="footer">
+        <a href="options.html" target="_blank">设置</a> | 
+        <span>版本 3.0.0</span>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html> 
