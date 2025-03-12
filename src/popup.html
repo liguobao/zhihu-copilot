@@ -146,7 +146,7 @@
             <img src="img/zhihu-logo_48.png" alt="知乎Copilot">
             <h1><a href="https://www.zhihu.com" target="_blank" style="text-decoration: none; color: #0084ff;">知乎Copilot</a></h1>
         </div>
-        <button id="refresh-messages" class="refresh-btn">刷新消息</button>
+        <button id="refresh-messages" class="refresh-btn">打开知乎</button>
     </div>
     
     <div class="notification">
@@ -182,13 +182,14 @@
         <h2>内容导出</h2>
         <div class="export-options">
             <div class="export-option">
-                <input type="checkbox" id="export-answers-check" checked>
+                <input type="radio" id="export-answers-check" name="export-type" value="answers" checked>
                 <label for="export-answers-check">📝 回答</label>
             </div>
-            <!-- <div class="export-option">
-                <input type="checkbox" id="export-articles-check">
+            <div class="export-option">
+                <input type="radio" id="export-articles-check" name="export-type" value="articles">
                 <label for="export-articles-check">📄 专栏文章</label>
-            </div>
+            </div>  
+            <!-- 
             <div class="export-option">
                 <input type="checkbox" id="export-ideas-check">
                 <label for="export-ideas-check">💡 想法</label>

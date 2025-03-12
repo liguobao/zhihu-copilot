@@ -29,13 +29,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化时更新消息数量
     updateMessageCount();
 
-    // 刷新按钮点击事件
+    // 刷新按钮点击事件 - 修改为打开知乎
     document.getElementById('refresh-messages').addEventListener('click', function() {
-        chrome.runtime.sendMessage({action: "refreshMessages"}, function(response) {
-            if (response && response.success) {
-                setTimeout(updateMessageCount, 1000); // 等待后台更新完成后刷新显示
-            }
-        });
+        chrome.tabs.create({url: 'https://www.zhihu.com'});
     });
     
     // 前往消息中心
@@ -75,8 +71,45 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // 获取用户选择的导出类型
+        const exportType = document.querySelector('input[name="export-type"]:checked').value;
+        
+        // 根据用户选择的导出类型，切换到相应的标签页
+        let targetUrl;
+        if (exportType === 'answers') {
+            // 构建回答标签页的URL
+            const baseUrl = tab.url.split('?')[0].replace(/\/posts$|\/answers$/, '');
+            targetUrl = baseUrl + '/answers';
+        } else if (exportType === 'articles') {
+            // 构建文章标签页的URL
+            const baseUrl = tab.url.split('?')[0].replace(/\/posts$|\/answers$/, '');
+            targetUrl = baseUrl + '/posts';
+        }
+        
+        // 如果当前不在目标标签页，则切换到目标标签页
+        if (tab.url !== targetUrl) {
+            await chrome.tabs.update(tab.id, { url: targetUrl });
+            
+            // 等待页面加载完成
+            await new Promise(resolve => {
+                const listener = function(tabId, changeInfo) {
+                    if (tabId === tab.id && changeInfo.status === 'complete') {
+                        chrome.tabs.onUpdated.removeListener(listener);
+                        resolve();
+                    }
+                };
+                chrome.tabs.onUpdated.addListener(listener);
+            });
+            
+            // 给页面一些时间加载内容
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
         // 从内容脚本获取总页数
-        chrome.tabs.sendMessage(tab.id, { action: "getTotalPages" }, function(response) {
+        chrome.tabs.sendMessage(tab.id, { 
+            action: "getTotalPages",
+            exportType: exportType
+        }, function(response) {
             let totalPage = 5; // 默认值
             
             if (response && response.totalPages) {
@@ -85,10 +118,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             console.log("totalPage:", totalPage);
             
-            // 开始导出过程
+            // 开始导出
             chrome.tabs.sendMessage(tab.id, {
-                action: "startExport",
-                maxPage: totalPage
+                action: "startExport_"+ exportType,
+                maxPage: totalPage,
+                exportType: exportType
             });
         });
     });

@@ -1,41 +1,41 @@
 // 在文件开头添加进度相关的常量
-var ans_list_key = "zhihu_ans_list";
-var ans_ids_key = "zhihu_ans_ids";
+var article_list_key = "zhihu_article_list";
+var article_ids_key = "zhihu_article_ids";
 
 // 修改存储相关函数，使用 Chrome 存储 API
-function include_ans_id(ans_id) {
+function include_ans_id(article_id) {
     return new Promise(resolve => {
         chrome.storage.local.get(ans_ids_key, (result) => {
-            const ans_ids = result[ans_ids_key] || [];
-            resolve(ans_ids.includes(ans_id));
+            const article_ids = result[article_ids_key] || [];
+            resolve(article_ids.includes(article_id));
         });
     });
 }
 
-function add_ans_id(ans_id) {
+function add_ans_id(article_id) {
     return new Promise(resolve => {
         chrome.storage.local.get(ans_ids_key, (result) => {
-            const ans_ids = result[ans_ids_key] || [];
-            ans_ids.push(ans_id);
-            chrome.storage.local.set({[ans_ids_key]: ans_ids}, resolve);
+            const article_ids = result[article_ids_key] || [];
+            article_ids.push(article_id);
+            chrome.storage.local.set({[article_ids_key]: article_ids}, resolve);
         });
     });
 }
 
-function add_ans_to_list(ans) {
+function add_article_to_list(article) {
     return new Promise(resolve => {
-        chrome.storage.local.get(ans_list_key, (result) => {
-            const ans_list = result[ans_list_key] || [];
-            ans_list.push(ans);
-            chrome.storage.local.set({[ans_list_key]: ans_list}, resolve);
+        chrome.storage.local.get(article_list_key, (result) => {
+            const article_list = result[article_list_key] || [];
+            article_list.push(article);
+            chrome.storage.local.set({[article_list_key]: article_list}, resolve);
         });
     });
 }
 
-function check_ans_list_empty() {
-    var answerItemList = document.querySelectorAll('.AnswerItem');
-    if (answerItemList.length == 0) {
-        console.log("没有找到回答，跳出");
+function check_article_list_empty() {
+    var articleItemList = document.querySelectorAll('.ArticleItem');
+    if (articleItemList.length == 0) {
+        console.log("没有找到专栏文章，跳出");
         return false;
     }
     return true;
@@ -43,14 +43,14 @@ function check_ans_list_empty() {
 
 // 修改 saveAnswers 函数为异步函数
 async function saveAnswers() {
-    let answerItemList = document.querySelectorAll('.AnswerItem');
-    for (let answerItem of answerItemList) {
-        var ansItemLabel = answerItem.querySelector(".RichContent-inner");
-        if (!ansItemLabel) {
-            console.log(`answerItem:${answerItem} is not a valid answer item, skip`);
+    let articleItemList = document.querySelectorAll('.ArticleItem');
+    for (let articleItem of articleItemList) {
+        var zhuanlanLabel = articleItem.querySelector(".RichContent-inner");
+        if (!zhuanlanLabel) {
+            console.log(`answerItem:${articleItem} is not a valid answer item, skip`);
             continue;
         }
-        var itemData = answerItem.getAttribute("data-zop");
+        var itemData = articleItem.getAttribute("data-zop");
         var ans_id = JSON.parse(itemData)["itemId"];
         if (await include_ans_id(ans_id)) {
             console.log(`answer:${ans_id} 已存在，跳过`);
@@ -58,18 +58,18 @@ async function saveAnswers() {
         }
         await add_ans_id(ans_id);
         var question_title = JSON.parse(itemData)["title"];
-        ansItemLabel.click();
+        zhuanlanLabel.click();
         console.log(`question_title:${question_title} 自动点击展开`);
 
-        var answer_id = JSON.parse(itemData)["itemId"];
-        var answer_content = answerItem.querySelector('.RichContent-inner').innerText;
+        var zhuanlan_id = JSON.parse(itemData)["itemId"];
+        var answer_content = articleItem.querySelector('.RichContent-inner').innerText;
         var answer = {
             question_title: question_title,
-            answer_id: answer_id,
+            answer_id: zhuanlan_id,
             answer_content: answer_content,
-            answer_url: "https://www.zhihu.com/answer/" + answer_id
+            answer_url: "https://zhuanlan.zhihu.com/p/" + zhuanlan_id
         };
-        console.log(`answer:${answer_id} 已保存`);
+        console.log(`zhuanlan:${zhuanlan_id} 已保存`);
         await add_ans_to_list(answer);
     }
 }
@@ -109,7 +109,7 @@ async function exportToMarkdown() {
                 const fileName = `${answer.answer_id}_${safeTitle}.md`;
 
                 let content = `# ${answer.question_title}\n\n`;
-                content += `> 回答ID: ${answer.answer_id}\n\n`;
+                content += `> ArticleID: ${answer.answer_id}\n\n`;
                 content += `> 链接: ${answer.answer_url}\n\n`;
                 content += `${answer.answer_content}\n\n`;
 
@@ -122,7 +122,7 @@ async function exportToMarkdown() {
             const url = URL.createObjectURL(zipBlob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `zhihu_answers_${timestamp}.zip`;
+            a.download = `zhihu_articles_${timestamp}.zip`;
             a.click();
             chrome.storage.local.remove([ans_list_key, ans_ids_key]);
             URL.revokeObjectURL(url);
@@ -152,7 +152,7 @@ function exportToJSON() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `zhihu_answers_${timestamp}.json`;
+        a.download = `zhihu_articles_${timestamp}.json`;
         a.click();
         URL.revokeObjectURL(url);
         
@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // 修改消息监听器
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "startExport_answers") {
+    if (request.action === "startExport_articles") {
         startExport(request.maxPage);
         sendResponse({success: true});
     } else if (request.action === "stopExport") {

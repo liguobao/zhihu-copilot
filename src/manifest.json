@@ -24,7 +24,9 @@
       "matches": ["https://*.zhihu.com/*"],
       "js": [
         "lib/jszip.min.js",
-        "js/dump_answers.js"
+        "js/common.js",
+        "js/dump_answers.js",
+        "js/dump_articles.js"
       ]
     }
   ],
