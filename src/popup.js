@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const progressText = document.getElementById('progress-text');
         const stopButton = document.getElementById('stop-export');
         
-        progressDiv.style.display = 'block';
+        progressDiv.style.display = 'flex'; // 改为flex布局
         this.disabled = true;
         stopButton.style.display = 'block'; // 显示停止按钮
     
@@ -70,6 +70,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!tab.url.includes('zhihu.com/people/')) {
             progressText.textContent = '请在知乎用户主页使用此功能';
+            this.disabled = false;
+            stopButton.style.display = 'none';
             return;
         }
 
@@ -77,23 +79,20 @@ document.addEventListener('DOMContentLoaded', function() {
         // 获取总页数
         function getTotalPages() {
             const pagination = document.querySelector('.Pagination');
-            debugger;
-            if (!pagination) return 20; // 默认20页
-            
+            if (!pagination) return 5; // 默认20页
             const buttons = pagination.querySelectorAll('button');
             if (buttons.length >= 2) {
                 const totalPage = parseInt(buttons[buttons.length - 2].textContent);
-                return isNaN(totalPage) ? 20 : totalPage;
+                return isNaN(totalPage) ? 5 : totalPage;
             }
-            return 20;
+            return 5;
         }
         var totalPage = getTotalPages();
         console.log("totalPage:", totalPage);
-    
-        // chrome.tabs.sendMessage(tab.id, {
-        //     action: "startExport",
-        //     maxPage: totalPage
-        // });
+        chrome.tabs.sendMessage(tab.id, {
+            action: "startExport",
+            maxPage: totalPage
+        });
     });
     
     // 监听来自 content script 的消息
@@ -108,6 +107,48 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         else if (request.action === "exportError") {
             document.getElementById('progress-text').textContent = `导出失败: ${request.error}`;
+            document.getElementById('start-export').disabled = false;
+            document.getElementById('stop-export').style.display = 'none';
+        }
+        else if (request.action === "exportComplete") {
+            document.getElementById('progress-text').textContent = '导出完成';
+            document.getElementById('progress-inner').style.width = '100%';
+            document.getElementById('start-export').disabled = false;
+            document.getElementById('stop-export').style.display = 'none';
+            
+            // 添加清理缓存的代码
+            chrome.storage.local.remove(['exportStatus', 'exportProgress']);
+            
+            // 导出完成后延迟隐藏进度条
+            setTimeout(() => {
+                document.getElementById('export-progress').style.display = 'none';
+            }, 1500); // 1.5秒后隐藏，让用户能看到完成状态
+        }
+        else if (request.action === "exportFileCompleted") {
+            // 处理文件下载完成的消息
+            document.getElementById('progress-text').textContent = `已导出 ${request.count} 条回答为 ${request.fileType} 文件`;
+            document.getElementById('progress-inner').style.width = '100%';
+            document.getElementById('start-export').disabled = false;
+            document.getElementById('stop-export').style.display = 'none';
+            
+            // 清理缓存
+            chrome.storage.local.remove(['exportStatus', 'exportProgress']);
+            
+            // 延迟隐藏进度条
+            setTimeout(() => {
+                document.getElementById('export-progress').style.display = 'none';
+            }, 2000); // 2秒后隐藏，让用户能看到完成状态
+        }
+        else if (request.action === "exportStopped") {
+            // 处理导出被停止的消息
+            document.getElementById('progress-text').textContent = '导出已停止';
+            document.getElementById('start-export').disabled = false;
+            document.getElementById('stop-export').style.display = 'none';
+            
+            // 延迟隐藏进度条
+            setTimeout(() => {
+                document.getElementById('export-progress').style.display = 'none';
+            }, 1500);
         }
     });
     
@@ -126,12 +167,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const exportButton = document.getElementById('start-export');
         
         progressBar.style.width = '0%';
-        progressText.textContent = '已停止导出';
+        //progressText.textContent = '已停止导出';
+        progressDiv.style.display = 'none'; // 隐藏进度信息
         exportButton.disabled = false;
         this.style.display = 'none';
+        
+        // 清除缓存
+        chrome.storage.local.remove(['exportStatus', 'exportProgress']);
+
     });
     
-    // 修改状态恢复函数，添加停止按钮的处理
+    // 修改状态恢复函数，移除按钮文本修改的处理
     async function restoreExportStatus() {
         const tabs = await chrome.tabs.query({active: true, currentWindow: true});
         const tab = tabs[0];

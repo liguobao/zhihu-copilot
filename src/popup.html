@@ -153,6 +153,17 @@
         <div id="notification-text">
             您有 <span class="notification-count" id="unread-count">0</span> 条未读消息
         </div>
+        <div class="notification-details">
+            <div id="default-msg" style="display: none;">
+                一般消息: <span id="default-count">0</span> 条
+            </div>
+            <div id="follow-msg" style="display: none;">
+                关注消息: <span id="follow-count">0</span> 条
+            </div>
+            <div id="vote-msg" style="display: none;">
+                赞同消息: <span id="vote-count">0</span> 条
+            </div>
+        </div>
     </div>
     
     <a href="#" class="menu-item" id="go-to-inbox">
@@ -186,24 +197,28 @@
         <button id="start-export" class="export-btn">开始导出</button>
     </div>
     
+    <script src="popup.js"></script>
+    <!-- 在 export-section div 中添加 -->
+    <!-- 在导出进度条区域修改 -->
+    <div id="export-progress" style="display: none; margin-top: 10px;">
+        <div style="display: flex; align-items: center; width: 100%;">
+            <div style="flex-grow: 1; background-color: #f0f0f0; border-radius: 4px; overflow: hidden; margin-right: 8px;">
+                <div id="progress-inner" style="background-color: #0084ff; height: 4px; width: 0%; transition: width 0.3s;"></div>
+            </div>
+            <button id="stop-export" style="display: none; background-color: #ff4d4f; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 1; cursor: pointer; padding: 0;">
+                ×
+            </button>
+        </div>
+
+    </div>
+    <div id="progress-text" style="font-size: 12px; color: #666; margin-top: 5px; text-align: center;">
+    </div>
+    
     <div class="footer">
         <a href="options.html" target="_blank">设置</a> | 
         <span>版本 3.0.0</span>
     </div>
 
-    <script src="popup.js"></script>
-    <!-- 在 export-section div 中添加 -->
-    <!-- 在导出进度条区域添加 -->
-    <div id="export-progress" style="display: none; margin-top: 10px;">
-        <div style="background-color: #f0f0f0; border-radius: 4px; overflow: hidden;">
-            <div id="progress-inner" style="background-color: #0084ff; height: 4px; width: 0%; transition: width 0.3s;"></div>
-        </div>
-        <div id="progress-text" style="font-size: 12px; color: #666; margin-top: 5px; text-align: center;">
-            准备导出...
-        </div>
-        <button id="stop-export" style="display: none; margin-top: 10px; width: 100%; padding: 8px; background-color: #ff4d4f; color: white; border: none; border-radius: 4px; cursor: pointer;">
-            停止导出
-        </button>
-    </div>
+
 </body>
 </html>
