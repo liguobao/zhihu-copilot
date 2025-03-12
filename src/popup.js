@@ -75,23 +75,21 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // 添加主控制函数
-        // 获取总页数
-        function getTotalPages() {
-            const pagination = document.querySelector('.Pagination');
-            if (!pagination) return 5; // 默认20页
-            const buttons = pagination.querySelectorAll('button');
-            if (buttons.length >= 2) {
-                const totalPage = parseInt(buttons[buttons.length - 2].textContent);
-                return isNaN(totalPage) ? 5 : totalPage;
+        // 从内容脚本获取总页数
+        chrome.tabs.sendMessage(tab.id, { action: "getTotalPages" }, function(response) {
+            let totalPage = 5; // 默认值
+            
+            if (response && response.totalPages) {
+                totalPage = response.totalPages;
             }
-            return 5;
-        }
-        var totalPage = getTotalPages();
-        console.log("totalPage:", totalPage);
-        chrome.tabs.sendMessage(tab.id, {
-            action: "startExport",
-            maxPage: totalPage
+            
+            console.log("totalPage:", totalPage);
+            
+            // 开始导出过程
+            chrome.tabs.sendMessage(tab.id, {
+                action: "startExport",
+                maxPage: totalPage
+            });
         });
     });
     
@@ -149,6 +147,23 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => {
                 document.getElementById('export-progress').style.display = 'none';
             }, 1500);
+        }
+        else if (request.action === "getTotalPages") {
+            const pagination = document.querySelector('.Pagination');
+            let totalPages = 5; // 默认值
+            
+            if (pagination) {
+                const buttons = pagination.querySelectorAll('button');
+                if (buttons.length >= 2) {
+                    const totalPage = parseInt(buttons[buttons.length - 2].textContent);
+                    if (!isNaN(totalPage)) {
+                        totalPages = totalPage;
+                    }
+                }
+            }
+            
+            sendResponse({ totalPages: totalPages });
+            return true; // 保持消息通道开放以进行异步响应
         }
     });
     

@@ -81,7 +81,10 @@ async function saveAnswers() {
 
 function click_next_page() {
     if (!check_ans_list_empty()) {
-        console.log("没有找到回答，跳出");
+        console.log("没有找到回答，跳出并刷新页面");
+        // 保存当前状态，以便页面刷新后继续执行
+        saveExportStatus('refreshing');
+        saveExportProgress(current_page, max_page);
         window.location.reload();
         return;
     }
@@ -101,6 +104,9 @@ async function exportToMarkdown() {
 
             // 创建新的 JSZip 实例
             const zip = new JSZip();
+            
+            // 获取当前时间戳
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
             // 为每个回答创建单独的 markdown 文件
             for (let answer of stored) {
@@ -121,7 +127,7 @@ async function exportToMarkdown() {
             const url = URL.createObjectURL(zipBlob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = "zhihu_answers.zip";
+            a.download = `zhihu_answers_${timestamp}.zip`;
             a.click();
             chrome.storage.local.remove([ans_list_key, ans_ids_key]);
             URL.revokeObjectURL(url);
@@ -144,10 +150,14 @@ function exportToJSON() {
         let stored = result[ans_list_key] || [];
         let jsonStr = JSON.stringify(stored);
         const blob = new Blob([jsonStr], { type: 'application/json' });
+        
+        // 获取当前时间戳
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = "zhihu_answers.json";
+        a.download = `zhihu_answers_${timestamp}.json`;
         a.click();
         URL.revokeObjectURL(url);
         
@@ -211,6 +221,11 @@ async function startExport(maxPages) {
     saveExportStatus('exporting');
     saveExportProgress(current_page, max_page);
 
+    await continueExport();
+}
+
+// 添加新函数用于继续导出流程
+async function continueExport() {
     while (current_page <= max_page && isExporting) {
         console.log("current_page:", current_page);
         // 发送进度更新
@@ -233,11 +248,23 @@ async function startExport(maxPages) {
         click_next_page();
         
         // 等待页面加载
-        await sleep(3000);
+        await sleep(5000);
         
-        // 检查是否还有下一页
+        // 检查URL中的页码参数是否已达到最大页数
+        const urlParams = new URLSearchParams(window.location.search);
+        const pageParam = parseInt(urlParams.get('page') || '1');
+        console.log("当前URL页码参数:", pageParam, "最大页数:", max_page);
+        
+        if (pageParam >= max_page) {
+            console.log("已达到最大页数，结束导出");
+            saveExportStatus('completed');
+            break;
+        }
+        
+        // 检查是否还有下一页按钮
         const nextButton = document.querySelector(".PaginationButton-next");
         if (!nextButton || nextButton.disabled) {
+            console.log("没有下一页按钮或按钮已禁用，结束导出");
             saveExportStatus('completed');
             break;
         }
@@ -260,6 +287,24 @@ async function startExport(maxPages) {
     }
     isExporting = false;
 }
+
+// 添加页面加载时的检查，以便在刷新后继续执行
+document.addEventListener('DOMContentLoaded', async () => {
+    const status = await getExportStatus();
+    const progress = await getExportProgress();
+    
+    if (status.status === 'refreshing') {
+        console.log("检测到页面刷新，继续执行导出操作");
+        isExporting = true;
+        current_page = progress.current;
+        max_page = progress.total;
+        saveExportStatus('exporting');
+        
+        // 给页面一些时间加载
+        await sleep(2000);
+        await continueExport();
+    }
+});
 
 // 修改消息监听器
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -285,5 +330,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
         return true; // 保持消息通道开放以进行异步响应
     }
+    else if (request.action === "getTotalPages") {
+        console.log("正在获取总页数...");
+        debugger;
+        // 获取分页信息
+        const pagination = document.querySelector('.Pagination');
+        let totalPages = 5; // 默认值
+        
+        if (pagination) {
+            console.log("找到分页元素:", pagination);
+            const buttons = pagination.querySelectorAll('button');
+            console.log("分页按钮数量:", buttons.length);
+            
+            if (buttons.length >= 2) {
+                const totalPage = parseInt(buttons[buttons.length - 2].textContent);
+                console.log("解析到的总页数:", totalPage);
+                if (!isNaN(totalPage)) {
+                    totalPages = totalPage;
+                }
+            }
+        } else {
+            console.log("未找到分页元素");
+        }
+        
+        console.log("返回总页数:", totalPages);
+        sendResponse({ totalPages: totalPages });
+        return true; // 保持消息通道开放以进行异步响应
+    }
     return true;
 });
+
