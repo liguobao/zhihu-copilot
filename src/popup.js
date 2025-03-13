@@ -84,6 +84,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // 构建文章标签页的URL
             const baseUrl = tab.url.split('?')[0].replace(/\/posts$|\/answers$/, '');
             targetUrl = baseUrl + '/posts';
+        }else if (exportType === 'pins') {
+            // 构建收藏夹标签页的URL
+            const baseUrl = tab.url.split('?')[0].replace(/\/posts$|\/answers$/, '');
+            targetUrl = baseUrl + '/pins';
         }
         
         // 如果当前不在目标标签页，则切换到目标标签页
