@@ -3,18 +3,18 @@ var article_list_key = "zhihu_article_list";
 var article_ids_key = "zhihu_article_ids";
 
 // 修改存储相关函数，使用 Chrome 存储 API
-function include_ans_id(article_id) {
+function include_id(article_id) {
     return new Promise(resolve => {
-        chrome.storage.local.get(ans_ids_key, (result) => {
+        chrome.storage.local.get(article_ids_key, (result) => {
             const article_ids = result[article_ids_key] || [];
             resolve(article_ids.includes(article_id));
         });
     });
 }
 
-function add_ans_id(article_id) {
+function add_id(article_id) {
     return new Promise(resolve => {
-        chrome.storage.local.get(ans_ids_key, (result) => {
+        chrome.storage.local.get(article_ids_key, (result) => {
             const article_ids = result[article_ids_key] || [];
             article_ids.push(article_id);
             chrome.storage.local.set({[article_ids_key]: article_ids}, resolve);
@@ -47,36 +47,36 @@ async function saveAnswers() {
     for (let articleItem of articleItemList) {
         var zhuanlanLabel = articleItem.querySelector(".RichContent-inner");
         if (!zhuanlanLabel) {
-            console.log(`answerItem:${articleItem} is not a valid answer item, skip`);
+            console.log(`articleItem:${articleItem} is not a valid article item, skip`);
             continue;
         }
         var itemData = articleItem.getAttribute("data-zop");
-        var ans_id = JSON.parse(itemData)["itemId"];
-        if (await include_ans_id(ans_id)) {
-            console.log(`answer:${ans_id} 已存在，跳过`);
+        var article_id = JSON.parse(itemData)["itemId"];
+        if (await include_id(article_id)) {
+            console.log(`article:${article_id} 已存在，跳过`);
             continue;
         }
-        await add_ans_id(ans_id);
-        var question_title = JSON.parse(itemData)["title"];
+        await add_id(article_id);
+        var title = JSON.parse(itemData)["title"];
         zhuanlanLabel.click();
-        console.log(`question_title:${question_title} 自动点击展开`);
+        console.log(`title:${title} 自动点击展开`);
 
         var zhuanlan_id = JSON.parse(itemData)["itemId"];
-        var answer_content = articleItem.querySelector('.RichContent-inner').innerText;
-        var answer = {
-            question_title: question_title,
-            answer_id: zhuanlan_id,
-            answer_content: answer_content,
-            answer_url: "https://zhuanlan.zhihu.com/p/" + zhuanlan_id
+        var article_content = articleItem.querySelector('.RichContent-inner').innerText;
+        var article = {
+            title: title,
+            data_id: zhuanlan_id,
+            data_content: article_content,
+            data_url: "https://zhuanlan.zhihu.com/p/" + zhuanlan_id
         };
         console.log(`zhuanlan:${zhuanlan_id} 已保存`);
-        await add_ans_to_list(answer);
+        await add_article_to_list(article);
     }
 }
 
 function click_next_page() {
-    if (!check_ans_list_empty()) {
-        console.log("没有找到回答，跳出并刷新页面");
+    if (!check_article_list_empty()) {
+        console.log("没有找到文章，跳出并刷新页面");
         // 保存当前状态，以便页面刷新后继续执行
         saveExportStatus('refreshing');
         saveExportProgress(current_page, max_page);
@@ -94,8 +94,8 @@ function click_next_page() {
 // 修改导出函数
 async function exportToMarkdown() {
     return new Promise(resolve => {
-        chrome.storage.local.get(ans_list_key, async (result) => {
-            let stored = result[ans_list_key] || [];
+        chrome.storage.local.get(article_list_key, async (result) => {
+            let stored = result[article_list_key] || [];
 
             // 创建新的 JSZip 实例
             const zip = new JSZip();
@@ -103,15 +103,15 @@ async function exportToMarkdown() {
             // 获取当前时间戳
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
-            // 为每个回答创建单独的 markdown 文件
-            for (let answer of stored) {
-                const safeTitle = answer.question_title.replace(/[\\/:*?"<>|]/g, '_');
-                const fileName = `${answer.answer_id}_${safeTitle}.md`;
+            // 为每个文章创建单独的 markdown 文件
+            for (let dataItem of stored) {
+                const safeTitle = dataItem.title.replace(/[\\/:*?"<>|]/g, '_');
+                const fileName = `${dataItem.data_id}_${safeTitle}.md`;
 
-                let content = `# ${answer.question_title}\n\n`;
-                content += `> ArticleID: ${answer.answer_id}\n\n`;
-                content += `> 链接: ${answer.answer_url}\n\n`;
-                content += `${answer.answer_content}\n\n`;
+                let content = `# ${dataItem.title}\n\n`;
+                content += `> ArticleID: ${dataItem.data_id}\n\n`;
+                content += `> 链接: ${dataItem.data_url}\n\n`;
+                content += `${dataItem.data_content}\n\n`;
 
                 // 将文件添加到 zip
                 zip.file(fileName, content);
@@ -124,7 +124,7 @@ async function exportToMarkdown() {
             a.href = url;
             a.download = `zhihu_articles_${timestamp}.zip`;
             a.click();
-            chrome.storage.local.remove([ans_list_key, ans_ids_key]);
+            chrome.storage.local.remove([article_list_key, article_ids_key]);
             URL.revokeObjectURL(url);
             
             // 发送导出文件完成的消息
@@ -141,8 +141,8 @@ async function exportToMarkdown() {
 
 // 修改 JSON 导出函数
 function exportToJSON() {
-    chrome.storage.local.get(ans_list_key, (result) => {
-        let stored = result[ans_list_key] || [];
+    chrome.storage.local.get(article_list_key, (result) => {
+        let stored = result[article_list_key] || [];
         let jsonStr = JSON.stringify(stored);
         const blob = new Blob([jsonStr], { type: 'application/json' });
         
@@ -267,7 +267,7 @@ async function continueExport() {
 
     if (!isExporting) {
         saveExportStatus('stopped');
-        chrome.storage.local.remove([ans_list_key, ans_ids_key]);
+        chrome.storage.local.remove([article_list_key, article_ids_key]);
         // 发送导出停止的消息
         chrome.runtime.sendMessage({
             action: "exportStopped"
@@ -309,8 +309,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else if (request.action === "stopExport") {
         isExporting = false;
         chrome.storage.local.remove([
-            ans_list_key, 
-            ans_ids_key, 
+            article_list_key, 
+            article_ids_key, 
             EXPORT_STATUS_KEY, 
             EXPORT_PROGRESS_KEY
         ]);
