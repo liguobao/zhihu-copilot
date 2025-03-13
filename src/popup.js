@@ -55,9 +55,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const progressBar = document.getElementById('progress-inner');
         const progressText = document.getElementById('progress-text');
         const stopButton = document.getElementById('stop-export');
+        const exportButton = document.getElementById('start-export'); // 获取按钮的引用
         
         progressDiv.style.display = 'flex'; // 改为flex布局
-        this.disabled = true;
+        exportButton.disabled = true; // 使用引用来禁用按钮，而不是this
         stopButton.style.display = 'block'; // 显示停止按钮
     
         // 检查当前标签页是否是知乎用户页面
@@ -66,7 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!tab.url.includes('zhihu.com/people/')) {
             progressText.textContent = '请在知乎用户主页使用此功能';
-            this.disabled = false;
+            exportButton.disabled = false; // 使用引用来启用按钮
             stopButton.style.display = 'none';
             return;
         }
@@ -74,19 +75,30 @@ document.addEventListener('DOMContentLoaded', function() {
         // 获取用户选择的导出类型
         const exportType = document.querySelector('input[name="export-type"]:checked').value;
         
+        // 获取用户选择的导出页数设置
+        const exportPagesType = document.querySelector('input[name="export-pages"]:checked').value;
+        let maxPage = 0; // 0 表示全部导出
+        
+        if (exportPagesType === 'custom') {
+            maxPage = parseInt(document.getElementById('custom-pages-count').value);
+            if (isNaN(maxPage) || maxPage < 1) {
+                maxPage = 1; // 默认至少导出1页
+            }
+        }
+        
         // 根据用户选择的导出类型，切换到相应的标签页
         let targetUrl;
         if (exportType === 'answers') {
             // 构建回答标签页的URL
-            const baseUrl = tab.url.split('?')[0].replace(/\/posts$|\/answers$/, '');
+            const baseUrl = tab.url.split('?')[0].replace(/\/pins$|\/answers$|\/posts$/, '');
             targetUrl = baseUrl + '/answers';
         } else if (exportType === 'articles') {
             // 构建文章标签页的URL
-            const baseUrl = tab.url.split('?')[0].replace(/\/posts$|\/answers$/, '');
+            const baseUrl = tab.url.split('?')[0].replace(/\/pins$|\/answers$|\/posts$/, '');
             targetUrl = baseUrl + '/posts';
         }else if (exportType === 'pins') {
             // 构建收藏夹标签页的URL
-            const baseUrl = tab.url.split('?')[0].replace(/\/posts$|\/answers$/, '');
+            const baseUrl = tab.url.split('?')[0].replace(/\/pins$|\/answers$|\/posts$/, '');
             targetUrl = baseUrl + '/pins';
         }
         
@@ -122,10 +134,14 @@ document.addEventListener('DOMContentLoaded', function() {
             
             console.log("totalPage:", totalPage);
             
+            // 如果用户选择了自定义页数，并且指定的页数小于总页数，则使用指定的页数
+            // 否则使用总页数（即全部导出）
+            const pagesToExport = (maxPage > 0 && maxPage < totalPage) ? maxPage : totalPage;
+            
             // 开始导出
             chrome.tabs.sendMessage(tab.id, {
                 action: "startExport_"+ exportType,
-                maxPage: totalPage,
+                maxPage: pagesToExport,
                 exportType: exportType
             });
         });
@@ -143,13 +159,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         else if (request.action === "exportError") {
             document.getElementById('progress-text').textContent = `导出失败: ${request.error}`;
-            document.getElementById('start-export').disabled = false;
+            document.getElementById('start-export').disabled = false; // 恢复开始导出按钮
             document.getElementById('stop-export').style.display = 'none';
         }
         else if (request.action === "exportComplete") {
             document.getElementById('progress-text').textContent = '导出完成';
             document.getElementById('progress-inner').style.width = '100%';
-            document.getElementById('start-export').disabled = false;
+            document.getElementById('start-export').disabled = false; // 恢复开始导出按钮
             document.getElementById('stop-export').style.display = 'none';
             
             // 添加清理缓存的代码
@@ -164,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // 处理文件下载完成的消息
             document.getElementById('progress-text').textContent = `已导出 ${request.count} 条回答为 ${request.fileType} 文件`;
             document.getElementById('progress-inner').style.width = '100%';
-            document.getElementById('start-export').disabled = false;
+            document.getElementById('start-export').disabled = false; // 恢复开始导出按钮
             document.getElementById('stop-export').style.display = 'none';
             
             // 清理缓存
@@ -178,7 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (request.action === "exportStopped") {
             // 处理导出被停止的消息
             document.getElementById('progress-text').textContent = '导出已停止';
-            document.getElementById('start-export').disabled = false;
+            document.getElementById('start-export').disabled = false; // 恢复开始导出按钮
             document.getElementById('stop-export').style.display = 'none';
             
             // 延迟隐藏进度条
@@ -220,14 +236,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const exportButton = document.getElementById('start-export');
         
         progressBar.style.width = '0%';
-        //progressText.textContent = '已停止导出';
-        progressDiv.style.display = 'none'; // 隐藏进度信息
-        exportButton.disabled = false;
+        progressText.textContent = '已停止导出';
+        // 延迟隐藏进度条，让用户能看到停止状态
+        setTimeout(() => {
+            progressDiv.style.display = 'none'; // 隐藏进度信息
+        }, 1500);
+        
+        exportButton.disabled = false; // 恢复开始导出按钮
         this.style.display = 'none';
         
         // 清除缓存
         chrome.storage.local.remove(['exportStatus', 'exportProgress']);
-
     });
     
     // 修改状态恢复函数，移除按钮文本修改的处理
@@ -268,4 +287,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 初始化时恢复导出状态
     restoreExportStatus();
+
+    // 处理自定义页数输入框的启用/禁用状态
+    const customPagesRadio = document.getElementById('export-custom-pages');
+    const customPagesCount = document.getElementById('custom-pages-count');
+    
+    function updateCustomPagesState() {
+        customPagesCount.disabled = !customPagesRadio.checked;
+    }
+    
+    // 初始状态设置
+    updateCustomPagesState();
+    
+    // 添加事件监听器
+    document.querySelectorAll('input[name="export-pages"]').forEach(radio => {
+        radio.addEventListener('change', updateCustomPagesState);
+    });
 });

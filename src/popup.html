@@ -8,6 +8,15 @@
             font-family: 'Microsoft YaHei', sans-serif;
             width: 320px;
             padding: 10px;
+            margin: 0;
+            box-sizing: border-box;
+            overflow-x: hidden;
+            max-height: 600px; /* 设置最大高度 */
+            overflow-y: auto; /* 允许垂直滚动 */
+        }
+        
+        * {
+            box-sizing: border-box;
         }
         .header {
             display: flex;
@@ -195,6 +204,23 @@
                 <label for="export-pins-check">💡 想法</label>
             </div>
         </div>
+        
+        <div class="export-pages-setting" style="margin: 10px 0;">
+            <div style="display: flex; align-items: center; background-color: #f9f9f9; padding: 8px 12px; border-radius: 8px;">
+                <span style="font-size: 13px; color: #444; margin-right: 10px;">导出页数:</span>
+                <div style="display: flex; align-items: center; margin-right: 10px;">
+                    <input type="radio" id="export-all-pages" name="export-pages" value="all" checked>
+                    <label for="export-all-pages" style="font-size: 13px; color: #444; margin-left: 5px;">全部</label>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <input type="radio" id="export-custom-pages" name="export-pages" value="custom">
+                    <label for="export-custom-pages" style="font-size: 13px; color: #444; margin-left: 5px; margin-right: 5px;">前</label>
+                    <input type="number" id="custom-pages-count" min="1" value="5" style="width: 50px; padding: 3px 5px; border: 1px solid #ddd; border-radius: 4px;">
+                    <label for="custom-pages-count" style="font-size: 13px; color: #444; margin-left: 5px;">页</label>
+                </div>
+            </div>
+        </div>
+        
         <button id="start-export" class="export-btn">开始导出</button>
     </div>
     
