@@ -303,4 +303,46 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('input[name="export-pages"]').forEach(radio => {
         radio.addEventListener('change', updateCustomPagesState);
     });
+
+    // 里程碑点击事件
+    document.getElementById('milestone').addEventListener('click', async function(e) {
+        e.preventDefault();
+        const milestoneUrl = this.href;
+        
+        // 查询所有打开的知乎标签页
+        const tabs = await chrome.tabs.query({ url: 'https://*.zhihu.com/*' });
+        
+        if (tabs.length > 0) {
+            // 如果已经有知乎标签页，在新标签页打开
+            chrome.tabs.create({ url: milestoneUrl });
+        } else {
+            // 如果没有知乎标签页，创建新窗口
+            chrome.windows.create({
+                url: milestoneUrl,
+                type: 'normal',
+                width: 800,
+                height: 600,
+                left: Math.round((screen.width - 800) / 2),
+                top: Math.round((screen.height - 600) / 2),
+                focused: true
+            });
+        }
+    });
+
+    // 关闭 iframe 按钮点击事件
+    document.getElementById('close-milestone').addEventListener('click', function() {
+        const iframeContainer = document.getElementById('milestone-iframe');
+        const milestoneFrame = document.getElementById('milestone-frame');
+        iframeContainer.style.display = 'none';
+        milestoneFrame.src = ''; // 清空 iframe 内容
+    });
+
+    // 点击遮罩层关闭 iframe
+    document.getElementById('milestone-iframe').addEventListener('click', function(e) {
+        if (e.target === this) {
+            const milestoneFrame = document.getElementById('milestone-frame');
+            this.style.display = 'none';
+            milestoneFrame.src = ''; // 清空 iframe 内容
+        }
+    });
 });

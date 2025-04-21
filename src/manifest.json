@@ -1,6 +1,6 @@
 {
   "name": "知乎Copilot",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "显示知乎未读消息，导出回答、文章和想法",
   "manifest_version": 3,
   "background": {
@@ -17,7 +17,8 @@
     "notifications",
     "webNavigation",
     "storage",
-    "scripting"
+    "scripting",
+    "windows"
   ],
   "content_scripts": [
     {

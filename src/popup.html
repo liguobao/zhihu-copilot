@@ -11,7 +11,7 @@
             margin: 0;
             box-sizing: border-box;
             overflow-x: hidden;
-            max-height: 600px; /* 设置最大高度 */
+            max-height: 800px; /* 设置最大高度 */
             overflow-y: auto; /* 允许垂直滚动 */
         }
         
@@ -146,7 +146,6 @@
             color: #0084ff;
             font-weight: bold;
         }
-
     </style>
 </head>
 <body>
@@ -186,6 +185,9 @@
     <a href="https://www.zhihu.com/creator" class="menu-item" id="creator-center">
         <i>🎯</i> 创作中心
     </a>
+    <a href="https://www.zhihu.com/appview/creator/milestone" class="menu-item" id="milestone">
+        <i>🏆</i> 里程碑
+    </a>
     
     <div class="export-section">
         <h2>内容导出</h2>
@@ -224,9 +226,6 @@
         <button id="start-export" class="export-btn">开始导出</button>
     </div>
     
-    <script src="popup.js"></script>
-    <!-- 在 export-section div 中添加 -->
-    <!-- 在导出进度条区域修改 -->
     <div id="export-progress" style="display: none; margin-top: 10px;">
         <div style="display: flex; align-items: center; width: 100%;">
             <div style="flex-grow: 1; background-color: #f0f0f0; border-radius: 4px; overflow: hidden; margin-right: 8px;">
@@ -243,9 +242,9 @@
     
     <div class="footer">
         <a href="options.html" target="_blank">设置</a> | 
-        <span>版本 0.2.3</span>
+        <span>版本 0.2.6</span>
     </div>
 
-
+    <script src="popup.js"></script>
 </body>
 </html>
