@@ -1,6 +1,11 @@
 // 在文件开头添加进度相关的常量
 var ans_list_key = "zhihu_ans_list";
 var ans_ids_key = "zhihu_ans_ids";
+var EXPORT_STATUS_KEY = "zhihu_export_status";
+var EXPORT_PROGRESS_KEY = "zhihu_export_progress";
+var isExporting = false;
+var current_count = 0;
+var max_count = 500;
 
 // 修改存储相关函数，使用 Chrome 存储 API
 function include_ans_id(ans_id) {
@@ -41,9 +46,10 @@ function check_ans_list_empty() {
     return true;
 }
 
-// 修改 saveAnswers 函数为异步函数
+// 修改 saveAnswers 函数为异步函数，返回保存的数量
 async function saveAnswers() {
     let answerItemList = document.querySelectorAll('.AnswerItem');
+    let savedCount = 0;
     for (let answerItem of answerItemList) {
         var ansItemLabel = answerItem.querySelector(".RichContent-inner");
         if (!ansItemLabel) {
@@ -58,8 +64,19 @@ async function saveAnswers() {
         }
         await add_ans_id(ans_id);
         var question_title = JSON.parse(itemData)["title"];
-        ansItemLabel.click();
-        console.log(`question_title:${question_title} 自动点击展开`);
+        
+        // 检查是否有"阅读全文"按钮，如果有则点击展开
+        const moreButton = answerItem.querySelector('.ContentItem-more');
+        if (moreButton) {
+            moreButton.click();
+            console.log(`点击阅读全文按钮展开内容: ${question_title}`);
+            // 等待内容展开
+            await sleep(1000);
+        } else {
+            // 如果没有阅读全文按钮，则点击原来的展开逻辑
+            ansItemLabel.click();
+            console.log(`question_title:${question_title} 自动点击展开`);
+        }
 
         var answer_id = JSON.parse(itemData)["itemId"];
         var answer_content = answerItem.querySelector('.RichContent-inner').innerText;
@@ -71,24 +88,23 @@ async function saveAnswers() {
         };
         console.log(`answer:${answer_id} 已保存`);
         await add_ans_to_list(answer);
+        savedCount++;
     }
+    return savedCount;
 }
 
-function click_next_page() {
+function scroll_to_bottom() {
     if (!check_ans_list_empty()) {
         console.log("没有找到回答，跳出并刷新页面");
         // 保存当前状态，以便页面刷新后继续执行
         saveExportStatus('refreshing');
-        saveExportProgress(current_page, max_page);
+        saveExportProgress(current_count, max_count);
         window.location.reload();
         return;
     }
-    var next_page = document.querySelector(".PaginationButton-next");
-    if (next_page) {
-        next_page.click();
-        console.log(`点击下一页，当前页码:${current_page}`);
-        current_page++;
-    }
+    // 滚动到底部以加载更多内容
+    window.scrollTo(0, document.body.scrollHeight);
+    console.log(`滚动到底部，当前已保存:${current_count}`);
 }
 
 // 修改导出函数
@@ -109,7 +125,7 @@ async function exportToMarkdown() {
                 const fileName = `${answer.answer_id}_${safeTitle}.md`;
 
                 let content = `# ${answer.question_title}\n\n`;
-                content += `> 回答ID: ${answer.answer_id}\n\n`;
+                content += `> AnswerID: ${answer.answer_id}\n\n`;
                 content += `> 链接: ${answer.answer_url}\n\n`;
                 content += `${answer.answer_content}\n\n`;
 
@@ -207,59 +223,54 @@ function getExportProgress() {
 }
 
 // 修改 startExport 函数
-async function startExport(maxPages) {
+async function startExport(maxAnswers = 500) {
     isExporting = true;
-    current_page = 1;
-    max_page = maxPages;
+    current_count = 0;
+    max_count = maxAnswers;
     
     // 保存初始状态
     saveExportStatus('exporting');
-    saveExportProgress(current_page, max_page);
+    saveExportProgress(current_count, max_count);
 
     await continueExport();
 }
 
 // 添加新函数用于继续导出流程
 async function continueExport() {
-    while (current_page <= max_page && isExporting) {
-        console.log("current_page:", current_page);
+    while (current_count < max_count && isExporting) {
+        console.log("current_count:", current_count);
         // 发送进度更新
         chrome.runtime.sendMessage({
             action: "updateProgress",
-            current: current_page,
-            total: max_page
+            current: current_count,
+            total: max_count
         });
         
         // 保存当前进度
-        saveExportProgress(current_page, max_page);
+        saveExportProgress(current_count, max_count);
 
-        // 保存当前页的回答
-        await saveAnswers();
+        // 保存当前可见的回答
+        let saved = await saveAnswers();
+        current_count += saved;
         
-        // 等待内容加载
-        await sleep(2000);
-        
-        // 点击下一页
-        click_next_page();
-        
-        // 等待页面加载
-        await sleep(5000);
-        
-        // 检查URL中的页码参数是否已达到最大页数
-        const urlParams = new URLSearchParams(window.location.search);
-        const pageParam = parseInt(urlParams.get('page') || '1');
-        console.log("当前URL页码参数:", pageParam, "最大页数:", max_page);
-        
-        if (pageParam >= max_page) {
-            console.log("已达到最大页数，结束导出");
+        if (current_count >= max_count) {
+            console.log("已达到最大条数，结束导出");
             saveExportStatus('completed');
             break;
         }
         
-        // 检查是否还有下一页按钮
-        const nextButton = document.querySelector(".PaginationButton-next");
-        if (!nextButton || nextButton.disabled) {
-            console.log("没有下一页按钮或按钮已禁用，结束导出");
+        // 滚动到底部以加载更多内容
+        scroll_to_bottom();
+        
+        // 等待页面加载新内容
+        await sleep(5000);
+        
+        // 检查是否加载了新内容
+        let currentLength = document.querySelectorAll('.AnswerItem').length;
+        console.log("当前可见文章数量:", currentLength, "已保存:", current_count);
+        
+        if (currentLength <= current_count) {
+            console.log("没有更多内容加载，结束导出");
             saveExportStatus('completed');
             break;
         }
@@ -291,8 +302,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (status.status === 'refreshing') {
         console.log("检测到页面刷新，继续执行导出操作");
         isExporting = true;
-        current_page = progress.current;
-        max_page = progress.total;
+        current_count = progress.current;
+        max_count = progress.total;
         saveExportStatus('exporting');
         
         // 给页面一些时间加载
@@ -304,13 +315,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 // 修改消息监听器
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "startExport_answers") {
-        startExport(request.maxPage);
+        startExport(request.maxAnswers || 500);
         sendResponse({success: true});
     } else if (request.action === "stopExport") {
         isExporting = false;
         chrome.storage.local.remove([
-            ans_list_key, 
-            ans_ids_key, 
+            article_list_key, 
+            article_ids_key, 
             EXPORT_STATUS_KEY, 
             EXPORT_PROGRESS_KEY
         ]);

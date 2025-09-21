@@ -30,61 +30,73 @@ document.addEventListener('DOMContentLoaded', function() {
     updateMessageCount();
 
     // 刷新按钮点击事件 - 修改为打开知乎
-    document.getElementById('refresh-messages').addEventListener('click', function() {
-        chrome.tabs.create({url: 'https://www.zhihu.com'});
-    });
+    const refreshBtn = document.getElementById('refresh-messages');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            chrome.tabs.create({url: 'https://www.zhihu.com'});
+        });
+    }
     
     // 前往消息中心
-    document.getElementById('go-to-inbox').addEventListener('click', function() {
-        chrome.tabs.create({url: 'https://www.zhihu.com/notifications'});
-    });
+    const inboxBtn = document.getElementById('go-to-inbox');
+    if (inboxBtn) {
+        inboxBtn.addEventListener('click', function() {
+            chrome.tabs.create({url: 'https://www.zhihu.com/notifications'});
+        });
+    }
     
     // 开始写专栏
-    document.getElementById('write-article').addEventListener('click', function() {
-        chrome.tabs.create({url: 'https://zhuanlan.zhihu.com/write'});
-    });
+    const writeBtn = document.getElementById('write-article');
+    if (writeBtn) {
+        writeBtn.addEventListener('click', function() {
+            chrome.tabs.create({url: 'https://zhuanlan.zhihu.com/write'});
+        });
+    }
     
     // 创作中心
-    document.getElementById('creator-center').addEventListener('click', function() {
-        chrome.tabs.create({url: 'https://www.zhihu.com/creator'});
-    });
+    const creatorBtn = document.getElementById('creator-center');
+    if (creatorBtn) {
+        creatorBtn.addEventListener('click', function() {
+            chrome.tabs.create({url: 'https://www.zhihu.com/creator'});
+        });
+    }
     
     // 导出功能
-    document.getElementById('start-export').addEventListener('click', async function() {
-        const progressDiv = document.getElementById('export-progress');
-        const progressBar = document.getElementById('progress-inner');
-        const progressText = document.getElementById('progress-text');
-        const stopButton = document.getElementById('stop-export');
-        const exportButton = document.getElementById('start-export'); // 获取按钮的引用
+    const startExportBtn = document.getElementById('start-export');
+    if (startExportBtn) {
+        startExportBtn.addEventListener('click', async function() {
+            // 清空之前的缓存
+            chrome.storage.local.remove(['exportStatus', 'exportProgress']);
+            
+            const progressDiv = document.getElementById('export-progress');
+            const progressBar = document.getElementById('progress-inner');
+            const progressText = document.getElementById('progress-text');
+            const stopButton = document.getElementById('stop-export');
+            const exportButton = document.getElementById('start-export'); // 获取按钮的引用
+            
+            if (progressDiv) progressDiv.style.display = 'flex'; // 改为flex布局
+            if (exportButton) exportButton.disabled = true; // 使用引用来禁用按钮，而不是this
+            if (stopButton) stopButton.style.display = 'block'; // 显示停止按钮
         
-        progressDiv.style.display = 'flex'; // 改为flex布局
-        exportButton.disabled = true; // 使用引用来禁用按钮，而不是this
-        stopButton.style.display = 'block'; // 显示停止按钮
-    
-        // 检查当前标签页是否是知乎用户页面
-        const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-        const tab = tabs[0];
-        
-        if (!tab.url.includes('zhihu.com/people/')) {
-            progressText.textContent = '请在知乎用户主页使用此功能';
-            exportButton.disabled = false; // 使用引用来启用按钮
-            stopButton.style.display = 'none';
-            return;
-        }
-
-        // 获取用户选择的导出类型
-        const exportType = document.querySelector('input[name="export-type"]:checked').value;
-        
-        // 获取用户选择的导出页数设置
-        const exportPagesType = document.querySelector('input[name="export-pages"]:checked').value;
-        let maxPage = 0; // 0 表示全部导出
-        
-        if (exportPagesType === 'custom') {
-            maxPage = parseInt(document.getElementById('custom-pages-count').value);
-            if (isNaN(maxPage) || maxPage < 1) {
-                maxPage = 1; // 默认至少导出1页
+            // 检查当前标签页是否是知乎用户页面
+            const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+            const tab = tabs[0];
+            
+            if (!tab.url.includes('zhihu.com/people/')) {
+                if (progressText) progressText.textContent = '请在知乎用户主页使用此功能';
+                if (exportButton) exportButton.disabled = false; // 使用引用来启用按钮
+                if (stopButton) stopButton.style.display = 'none';
+                return;
             }
-        }
+
+            // 获取用户选择的导出类型
+            const exportType = document.querySelector('input[name="export-type"]:checked').value;
+        
+            // 获取用户输入的导出数量
+            let maxAnswers = parseInt(document.getElementById('export-count').value);
+            if (isNaN(maxAnswers) || maxAnswers < 1) {
+                maxAnswers = 50; // 默认至少导出50条
+            }
         
         // 根据用户选择的导出类型，切换到相应的标签页
         let targetUrl;
@@ -96,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // 构建文章标签页的URL
             const baseUrl = tab.url.split('?')[0].replace(/\/pins$|\/answers$|\/posts$/, '');
             targetUrl = baseUrl + '/posts';
-        }else if (exportType === 'pins') {
+        } else if (exportType === 'pins') {
             // 构建收藏夹标签页的URL
             const baseUrl = tab.url.split('?')[0].replace(/\/pins$|\/answers$|\/posts$/, '');
             targetUrl = baseUrl + '/pins';
@@ -121,31 +133,21 @@ document.addEventListener('DOMContentLoaded', function() {
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
-        // 从内容脚本获取总页数
-        chrome.tabs.sendMessage(tab.id, { 
-            action: "getTotalPages",
+        // 开始导出
+        chrome.tabs.sendMessage(tab.id, {
+            action: "startExport_"+ exportType,
+            maxAnswers: maxAnswers,
             exportType: exportType
         }, function(response) {
-            let totalPage = 5; // 默认值
-            
-            if (response && response.totalPages) {
-                totalPage = response.totalPages;
+            if (chrome.runtime.lastError) {
+                console.error('发送消息失败:', chrome.runtime.lastError.message);
+                if (progressText) progressText.textContent = '导出失败：无法连接到页面，请刷新页面后重试';
+                if (exportButton) exportButton.disabled = false;
+                if (stopButton) stopButton.style.display = 'none';
+                return;
             }
-            
-            console.log("totalPage:", totalPage);
-            
-            // 如果用户选择了自定义页数，并且指定的页数小于总页数，则使用指定的页数
-            // 否则使用总页数（即全部导出）
-            const pagesToExport = (maxPage > 0 && maxPage < totalPage) ? maxPage : totalPage;
-            
-            // 开始导出
-            chrome.tabs.sendMessage(tab.id, {
-                action: "startExport_"+ exportType,
-                maxPage: pagesToExport,
-                exportType: exportType
-            });
         });
-    });
+    })};
     
     // 监听来自 content script 的消息
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -155,7 +157,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const percent = (request.current / request.total) * 100;
             progressBar.style.width = `${percent}%`;
-            progressText.textContent = `正在导出第 ${request.current}/${request.total} 页`;
+            progressText.textContent = `正在导出 ${request.current}/${request.total} 条`;
         }
         else if (request.action === "exportError") {
             document.getElementById('progress-text').textContent = `导出失败: ${request.error}`;
@@ -222,16 +224,23 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // 添加停止按钮事件
-    document.getElementById('stop-export').addEventListener('click', async function() {
-        const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-        const tab = tabs[0];
-        
-        // 发送停止消息给 content script
-        chrome.tabs.sendMessage(tab.id, { action: "stopExport" });
-        
-        // 重置界面状态
-        const progressDiv = document.getElementById('export-progress');
-        const progressBar = document.getElementById('progress-inner');
+    const stopExportBtn = document.getElementById('stop-export');
+    if (stopExportBtn) {
+        stopExportBtn.addEventListener('click', async function() {
+            const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+            const tab = tabs[0];
+            
+            // 发送停止消息给 content script
+            chrome.tabs.sendMessage(tab.id, { action: "stopExport" }, function(response) {
+                if (chrome.runtime.lastError) {
+                    console.error('发送停止消息失败:', chrome.runtime.lastError.message);
+                    // 即使失败，也重置界面状态
+                }
+            });
+            
+            // 重置界面状态
+            const progressDiv = document.getElementById('export-progress');
+            const progressBar = document.getElementById('progress-inner');
         const progressText = document.getElementById('progress-text');
         const exportButton = document.getElementById('start-export');
         
@@ -247,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 清除缓存
         chrome.storage.local.remove(['exportStatus', 'exportProgress']);
-    });
+    })};
     
     // 修改状态恢复函数，移除按钮文本修改的处理
     async function restoreExportStatus() {
@@ -260,6 +269,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 获取导出状态
         chrome.tabs.sendMessage(tab.id, { action: "getExportStatus" }, function(response) {
+            if (chrome.runtime.lastError) {
+                console.error('获取导出状态失败:', chrome.runtime.lastError.message);
+                return;
+            }
             if (response && response.status) {
                 const progressDiv = document.getElementById('export-progress');
                 const progressBar = document.getElementById('progress-inner');
@@ -288,28 +301,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化时恢复导出状态
     restoreExportStatus();
 
-    // 处理自定义页数输入框的启用/禁用状态
-    const customPagesRadio = document.getElementById('export-custom-pages');
-    const customPagesCount = document.getElementById('custom-pages-count');
-    
-    function updateCustomPagesState() {
-        customPagesCount.disabled = !customPagesRadio.checked;
-    }
-    
-    // 初始状态设置
-    updateCustomPagesState();
-    
-    // 添加事件监听器
-    document.querySelectorAll('input[name="export-pages"]').forEach(radio => {
-        radio.addEventListener('change', updateCustomPagesState);
-    });
-
     // 里程碑点击事件
-    document.getElementById('milestone').addEventListener('click', async function(e) {
-        e.preventDefault();
-        const milestoneUrl = this.href;
-        
-        // 查询所有打开的知乎标签页
+    const milestoneBtn = document.getElementById('milestone');
+    if (milestoneBtn) {
+        milestoneBtn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const milestoneUrl = this.href;
+            
+            // 查询所有打开的知乎标签页
         const tabs = await chrome.tabs.query({ url: 'https://*.zhihu.com/*' });
         
         if (tabs.length > 0) {
@@ -330,19 +329,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 关闭 iframe 按钮点击事件
-    document.getElementById('close-milestone').addEventListener('click', function() {
-        const iframeContainer = document.getElementById('milestone-iframe');
-        const milestoneFrame = document.getElementById('milestone-frame');
-        iframeContainer.style.display = 'none';
-        milestoneFrame.src = ''; // 清空 iframe 内容
-    });
+    const closeMilestoneBtn = document.getElementById('close-milestone');
+    if (closeMilestoneBtn) {
+        closeMilestoneBtn.addEventListener('click', function() {
+            const iframeContainer = document.getElementById('milestone-iframe');
+            const milestoneFrame = document.getElementById('milestone-frame');
+            if (iframeContainer) iframeContainer.style.display = 'none';
+            if (milestoneFrame) milestoneFrame.src = ''; // 清空 iframe 内容
+        });
+    }
 
     // 点击遮罩层关闭 iframe
-    document.getElementById('milestone-iframe').addEventListener('click', function(e) {
-        if (e.target === this) {
-            const milestoneFrame = document.getElementById('milestone-frame');
-            this.style.display = 'none';
-            milestoneFrame.src = ''; // 清空 iframe 内容
-        }
-    });
+    const milestoneIframe = document.getElementById('milestone-iframe');
+    if (milestoneIframe) {
+        milestoneIframe.addEventListener('click', function(e) {
+            if (e.target === this) {
+                const milestoneFrame = document.getElementById('milestone-frame');
+                this.style.display = 'none';
+                if (milestoneFrame) milestoneFrame.src = ''; // 清空 iframe 内容
+            }
+        });
+    }
+}
 });
