@@ -196,8 +196,9 @@ async function saveItems() {
         console.log(`${title} 自动点击展开`);
       }
     }
-
-    const content = contentLabel?.innerText;
+    var contentLabelMore = item.querySelector(typeConfig.CONTENT_SELECTOR);
+    const content = contentLabelMore?.innerText;
+    //console.log(`正在保存 ${typeConfig.ITEM_TYPE}:${itemId} - ${title} - ${content}`);
     const url = `${typeConfig.URL_PREFIX}${itemId}`;
 
     // 使用配置中的项目创建器
