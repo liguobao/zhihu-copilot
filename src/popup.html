@@ -241,18 +241,17 @@
     </div>
     
     <div id="export-progress" style="display: none; margin-top: 10px; position: relative;">
-        <span id="close-progress" style="display: none; position: absolute; top: -8px; right: -4px; width: 18px; height: 18px; line-height: 18px; text-align: center; cursor: pointer; color: #999; font-size: 14px; font-weight: bold; z-index: 2;" role="button" aria-label="关闭导出状态">×</span>
-        <div style="display: flex; align-items: center; width: 100%;">
-            <div style="flex-grow: 1; background-color: #f0f0f0; border-radius: 4px; overflow: hidden; margin-right: 8px;">
-                <div id="progress-inner" style="background-color: #0084ff; height: 4px; width: 0%; transition: width 0.3s;"></div>
+        <button id="close-progress" style="display: none; position: absolute; top: -10px; right: -10px; background-color: #ff4d4f; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 1; cursor: pointer; padding: 0; z-index: 2;" aria-label="关闭导出状态">×</button>
+        <div style="display: flex; align-items: center; width: 100%; gap: 8px;">
+            <div style="flex-grow: 1; position: relative; background-color: #f0f0f0; border-radius: 4px; overflow: hidden; min-height: 26px; display: flex; align-items: center;">
+                <div id="progress-inner" style="background-color: #0084ff; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                <span id="progress-label" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 100%; text-align: center; font-size: 11px; color: #666; pointer-events: none; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: none;"></span>
             </div>
             <button id="stop-export" style="display: none; background-color: #ff4d4f; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 1; cursor: pointer; padding: 0;">
                 ×
             </button>
         </div>
 
-    </div>
-    <div id="progress-text" style="font-size: 12px; color: #666; margin-top: 5px; text-align: center;">
     </div>
     
     <script src="popup.js"></script>

@@ -64,19 +64,25 @@ document.addEventListener('DOMContentLoaded', function() {
         exportSummary.fileType = '';
     }
 
-    function setProgressText(message) {
-        const progressText = document.getElementById('progress-text');
-        if (!progressText) {
+    function setProgressText(message, percent) {
+        const progressLabel = document.getElementById('progress-label');
+        if (!progressLabel) {
             return null;
         }
         if (message && message.length > 0) {
-            progressText.textContent = message;
-            progressText.style.display = 'block';
+            progressLabel.textContent = message;
+            progressLabel.style.display = 'block';
         } else {
-            progressText.textContent = '';
-            progressText.style.display = 'none';
+            progressLabel.textContent = '';
+            progressLabel.style.display = 'none';
         }
-        return progressText;
+        if (typeof percent === 'number' && !Number.isNaN(percent)) {
+            const normalized = Math.max(0, Math.min(100, percent));
+            progressLabel.style.color = normalized >= 60 ? '#fff' : '#666';
+        } else {
+            progressLabel.style.color = '#666';
+        }
+        return progressLabel;
     }
 
     const closeProgressBtn = document.getElementById('close-progress');
@@ -237,9 +243,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (request.action === "updateProgress") {
             const progressBar = document.getElementById('progress-inner');
             
-            const percent = (request.current / request.total) * 100;
+            const percent = request.total ? (request.current / request.total) * 100 : 0;
             if (progressBar) progressBar.style.width = `${percent}%`;
-            setProgressText(`正在导出 ${request.current}/${request.total} 条`);
+            setProgressText(`正在导出 ${request.current}/${request.total} 条`, percent);
             exportSummary.current = request.current;
             exportSummary.total = request.total;
             if (closeProgressBtn) closeProgressBtn.style.display = 'none';
@@ -268,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (progressDiv) progressDiv.style.display = 'flex';
-            setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}${fileTypeLabel}`);
+            setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}${fileTypeLabel}`, 100);
             if (progressBar) progressBar.style.width = '100%';
             if (startButton) startButton.disabled = false; // 恢复开始导出按钮
             if (stopButton) {
@@ -301,7 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (progressDiv) progressDiv.style.display = 'flex';
-            setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}${fileType ? `（${fileType}）` : ''}`);
+            setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}${fileType ? `（${fileType}）` : ''}`, 100);
             if (progressBar) progressBar.style.width = '100%';
             if (startButton) startButton.disabled = false; // 恢复开始导出按钮
             if (stopButton) {
@@ -429,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     const percent = response.progress.total ? (response.progress.current / response.progress.total) * 100 : 0;
                     if (progressBar) progressBar.style.width = `${percent}%`;
-                    setProgressText(`正在导出 ${response.progress.current}/${response.progress.total} 条`);
+                    setProgressText(`正在导出 ${response.progress.current}/${response.progress.total} 条`, percent);
                     exportSummary.type = response.type;
                     exportSummary.typeLabel = EXPORT_TYPE_LABELS[response.type] || '内容';
                     exportSummary.total = response.progress.total || 0;
@@ -448,7 +454,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     if (progressDiv) progressDiv.style.display = 'flex';
                     if (progressBar) progressBar.style.width = '100%';
-                    setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}`);
+                    setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}`, 100);
                     if (exportButton) exportButton.disabled = false;
                     if (stopButton) {
                         stopButton.style.display = 'none';
