@@ -79,8 +79,34 @@ const TYPE_KEYS = {
     URL_PREFIX: "https://www.zhihu.com/pin/",
     CONTENT_SELECTOR: ".RichContent",
     ID_EXTRACTOR: (item) => {
-      const pinLink = item.querySelector("a[data-za-detail-view-id]");
-      return pinLink ? pinLink.getAttribute("href").split("/").pop() : null;
+      const itemData = item.getAttribute("data-zop");
+      if (itemData) {
+        try {
+          const parsed = JSON.parse(itemData);
+          if (parsed?.itemId) {
+            return parsed.itemId;
+          }
+        } catch (err) {
+          console.warn("解析想法 data-zop 失败:", err);
+        }
+      }
+
+      // data-zop 解析失败时回退到链接提取
+      const pinLink =
+        item.querySelector('a[href*="/pin/"]') ||
+        item.querySelector('.ContentItem-time a[href*="/pin/"]');
+
+      if (pinLink) {
+        const href = pinLink.getAttribute("href") || "";
+        // 处理 // 开头的协议相对链接
+        const normalized = href.replace(/^https?:\/\//, "").replace(/^\/\//, "");
+        const segments = normalized.split("/").filter(Boolean);
+        const lastSegment = segments.pop();
+        if (lastSegment) {
+          return lastSegment.split("?")[0];
+        }
+      }
+      return null;
     },
     TITLE_EXTRACTOR: (item) => {
       const authorElement = item.querySelector(".PinItem-author");
