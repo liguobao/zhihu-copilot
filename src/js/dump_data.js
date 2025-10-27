@@ -77,7 +77,7 @@ const TYPE_KEYS = {
     SELECTOR: '.PinItem',
     ITEM_TYPE: "想法",
     URL_PREFIX: "https://www.zhihu.com/pin/",
-    CONTENT_SELECTOR: ".RichContent",
+    CONTENT_SELECTOR: ".RichContent-inner",
     ID_EXTRACTOR: (item) => {
       const itemData = item.getAttribute("data-zop");
       if (itemData) {
@@ -189,7 +189,10 @@ async function saveItems() {
     }
 
     // 使用配置中的内容选择器
-    const contentLabel = item.querySelector(typeConfig.CONTENT_SELECTOR);
+    let contentLabel = item.querySelector(typeConfig.CONTENT_SELECTOR);
+    if (!contentLabel && exportType === "pins") {
+      contentLabel = item.querySelector(".RichContent");
+    }
 
     if (!contentLabel) {
       console.log(`${item} 不是有效的${typeConfig.ITEM_TYPE}，跳过`);
@@ -227,7 +230,10 @@ async function saveItems() {
       }
     }
     var contentLabelMore = item.querySelector(typeConfig.CONTENT_SELECTOR);
-    const content = contentLabelMore?.innerText;
+    if (!contentLabelMore && exportType === "pins") {
+      contentLabelMore = item.querySelector(".RichContent");
+    }
+    let content = contentLabelMore?.innerText?.trim() || "";
     //console.log(`正在保存 ${typeConfig.ITEM_TYPE}:${itemId} - ${title} - ${content}`);
     const url = `${typeConfig.URL_PREFIX}${itemId}`;
 
