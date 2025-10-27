@@ -13,9 +13,6 @@ document.addEventListener('DOMContentLoaded', function() {
     var pollInterval = localStorage.getItem('pollIntervalMin') || 1;
     document.getElementById('poll-interval').value = pollInterval;
     
-    var exportFormat = localStorage.getItem('exportFormat') || 'json';
-    document.getElementById('export-format').value = exportFormat;
-    
     // 保存设置
     document.getElementById('save-settings').addEventListener('click', function() {
         var notifyDefault = document.getElementById('notify-default').checked ? 1 : 0;
@@ -30,9 +27,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         var pollInterval = document.getElementById('poll-interval').value;
         localStorage.setItem('pollIntervalMin', pollInterval);
-        
-        var exportFormat = document.getElementById('export-format').value;
-        localStorage.setItem('exportFormat', exportFormat);
         
         // 显示保存成功
         var status = document.getElementById('status');

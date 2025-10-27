@@ -38,6 +38,28 @@
             margin: 0;
             color: #0084ff;
         }
+        .header-title {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+        .version {
+            font-size: 12px;
+            color: #999;
+        }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .settings-link {
+            font-size: 13px;
+            color: #0084ff;
+            text-decoration: none;
+        }
+        .settings-link:hover {
+            text-decoration: underline;
+        }
         .refresh-btn {
             background-color: #0084ff;
             color: white;
@@ -127,13 +149,6 @@
         .export-btn:hover {
             background-color: #0077e6;
         }
-        .footer {
-            margin-top: 15px;
-            font-size: 12px;
-            color: #999;
-            text-align: center;
-        }
-
         .notification-details {
             margin-top: 8px;
             font-size: 11px;
@@ -152,9 +167,15 @@
     <div class="header">
         <div class="header-left">
             <img src="img/zhihu-logo_48.png" alt="知乎Copilot">
-            <h1><a href="https://www.zhihu.com" target="_blank" style="text-decoration: none; color: #0084ff;">知乎Copilot</a></h1>
+            <div class="header-title">
+                <h1><a href="https://www.zhihu.com" target="_blank" style="text-decoration: none; color: #0084ff;">知乎Copilot</a></h1>
+                <span class="version">v0.3.1</span>
+            </div>
         </div>
-        <button id="refresh-messages" class="refresh-btn">打开知乎</button>
+        <div class="header-actions">
+            <a href="options.html" target="_blank" class="settings-link">设置</a>
+            <button id="refresh-messages" class="refresh-btn">打开知乎</button>
+        </div>
     </div>
     
     <div class="notification">
@@ -232,11 +253,6 @@
     <div id="progress-text" style="font-size: 12px; color: #666; margin-top: 5px; text-align: center;">
     </div>
     
-    <div class="footer">
-        <a href="options.html" target="_blank">设置</a> | 
-        <span>版本 0.2.7</span>
-    </div>
-
     <script src="popup.js"></script>
 </body>
 </html>
