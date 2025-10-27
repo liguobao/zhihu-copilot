@@ -26,6 +26,80 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    const EXPORT_TYPE_LABELS = {
+        answers: '回答',
+        articles: '专栏文章',
+        pins: '想法'
+    };
+
+    const EXPORT_STORAGE_KEYS = {
+        STATUS: 'zhihu_export_status',
+        PROGRESS: 'zhihu_export_progress'
+    };
+    const LEGACY_EXPORT_STORAGE_KEYS = ['exportStatus', 'exportProgress'];
+
+    function clearExportStorage() {
+        chrome.storage.local.remove([
+            EXPORT_STORAGE_KEYS.STATUS,
+            EXPORT_STORAGE_KEYS.PROGRESS,
+            ...LEGACY_EXPORT_STORAGE_KEYS
+        ]);
+    }
+
+    const exportSummary = {
+        type: null,
+        typeLabel: '',
+        total: 0,
+        current: 0,
+        count: 0,
+        fileType: ''
+    };
+
+    function resetExportSummary() {
+        exportSummary.type = null;
+        exportSummary.typeLabel = '';
+        exportSummary.total = 0;
+        exportSummary.current = 0;
+        exportSummary.count = 0;
+        exportSummary.fileType = '';
+    }
+
+    function setProgressText(message) {
+        const progressText = document.getElementById('progress-text');
+        if (!progressText) {
+            return null;
+        }
+        if (message && message.length > 0) {
+            progressText.textContent = message;
+            progressText.style.display = 'block';
+        } else {
+            progressText.textContent = '';
+            progressText.style.display = 'none';
+        }
+        return progressText;
+    }
+
+    const closeProgressBtn = document.getElementById('close-progress');
+    if (closeProgressBtn) {
+        closeProgressBtn.addEventListener('click', function() {
+            const progressDiv = document.getElementById('export-progress');
+            const progressBar = document.getElementById('progress-inner');
+            const stopButton = document.getElementById('stop-export');
+            const startButton = document.getElementById('start-export');
+            if (progressDiv) progressDiv.style.display = 'none';
+            if (progressBar) progressBar.style.width = '0%';
+            setProgressText('');
+            if (stopButton) {
+                stopButton.style.display = 'none';
+                stopButton.disabled = false;
+            }
+            if (startButton) startButton.disabled = false;
+            resetExportSummary();
+            clearExportStorage();
+            closeProgressBtn.style.display = 'none';
+        });
+    }
+
     // 初始化时更新消息数量
     updateMessageCount();
 
@@ -66,24 +140,29 @@ document.addEventListener('DOMContentLoaded', function() {
     if (startExportBtn) {
         startExportBtn.addEventListener('click', async function() {
             // 清空之前的缓存
-            chrome.storage.local.remove(['exportStatus', 'exportProgress']);
+            clearExportStorage();
             
             const progressDiv = document.getElementById('export-progress');
             const progressBar = document.getElementById('progress-inner');
-            const progressText = document.getElementById('progress-text');
             const stopButton = document.getElementById('stop-export');
             const exportButton = document.getElementById('start-export'); // 获取按钮的引用
             
             if (progressDiv) progressDiv.style.display = 'flex'; // 改为flex布局
             if (exportButton) exportButton.disabled = true; // 使用引用来禁用按钮，而不是this
-            if (stopButton) stopButton.style.display = 'block'; // 显示停止按钮
+            if (stopButton) {
+                stopButton.style.display = 'block'; // 显示停止按钮
+                stopButton.disabled = false;
+            }
+            if (closeProgressBtn) closeProgressBtn.style.display = 'none';
+            if (progressBar) progressBar.style.width = '0%';
+            setProgressText('准备导出...');
         
             // 检查当前标签页是否是知乎用户页面
             const tabs = await chrome.tabs.query({active: true, currentWindow: true});
             const tab = tabs[0];
             
             if (!tab.url.includes('zhihu.com/people/')) {
-                if (progressText) progressText.textContent = '请在知乎用户主页使用此功能';
+                setProgressText('请在知乎用户主页使用此功能');
                 if (exportButton) exportButton.disabled = false; // 使用引用来启用按钮
                 if (stopButton) stopButton.style.display = 'none';
                 return;
@@ -91,12 +170,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // 获取用户选择的导出类型
             const exportType = document.querySelector('input[name="export-type"]:checked').value;
+            resetExportSummary();
+            exportSummary.type = exportType;
+            exportSummary.typeLabel = EXPORT_TYPE_LABELS[exportType] || '内容';
         
             // 获取用户输入的导出数量
             let maxAnswers = parseInt(document.getElementById('export-count').value);
             if (isNaN(maxAnswers) || maxAnswers < 1) {
                 maxAnswers = 50; // 默认至少导出50条
             }
+            exportSummary.total = maxAnswers;
         
         // 根据用户选择的导出类型，切换到相应的标签页
         let targetUrl;
@@ -141,7 +224,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }, function(response) {
             if (chrome.runtime.lastError) {
                 console.error('发送消息失败:', chrome.runtime.lastError.message);
-                if (progressText) progressText.textContent = '导出失败：无法连接到页面，请刷新页面后重试';
+                setProgressText('导出失败：无法连接到页面，请刷新页面后重试');
                 if (exportButton) exportButton.disabled = false;
                 if (stopButton) stopButton.style.display = 'none';
                 return;
@@ -153,55 +236,102 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === "updateProgress") {
             const progressBar = document.getElementById('progress-inner');
-            const progressText = document.getElementById('progress-text');
             
             const percent = (request.current / request.total) * 100;
-            progressBar.style.width = `${percent}%`;
-            progressText.textContent = `正在导出 ${request.current}/${request.total} 条`;
+            if (progressBar) progressBar.style.width = `${percent}%`;
+            setProgressText(`正在导出 ${request.current}/${request.total} 条`);
+            exportSummary.current = request.current;
+            exportSummary.total = request.total;
+            if (closeProgressBtn) closeProgressBtn.style.display = 'none';
         }
         else if (request.action === "exportError") {
-            document.getElementById('progress-text').textContent = `导出失败: ${request.error}`;
+            setProgressText(`导出失败: ${request.error}`);
             document.getElementById('start-export').disabled = false; // 恢复开始导出按钮
             document.getElementById('stop-export').style.display = 'none';
+            if (closeProgressBtn) closeProgressBtn.style.display = 'block';
         }
-        else if (request.action === "exportComplete") {
-            document.getElementById('progress-text').textContent = '导出完成';
-            document.getElementById('progress-inner').style.width = '100%';
-            document.getElementById('start-export').disabled = false; // 恢复开始导出按钮
-            document.getElementById('stop-export').style.display = 'none';
-            
-            // 添加清理缓存的代码
-            chrome.storage.local.remove(['exportStatus', 'exportProgress']);
-            
-            // 导出完成后延迟隐藏进度条
-            setTimeout(() => {
-                document.getElementById('export-progress').style.display = 'none';
-            }, 1500); // 1.5秒后隐藏，让用户能看到完成状态
+        else if (request.action === "exportComplete" || request.action === "exportCompleted") {
+            const progressDiv = document.getElementById('export-progress');
+            const progressBar = document.getElementById('progress-inner');
+            const startButton = document.getElementById('start-export');
+            const stopButton = document.getElementById('stop-export');
+            const typeLabel = exportSummary.typeLabel || '内容';
+            const exportedCount = exportSummary.count || exportSummary.current || 0;
+            const total = exportSummary.total || 0;
+            const fileTypeLabel = exportSummary.fileType ? `（${exportSummary.fileType}）` : '';
+
+            let countText = exportedCount.toString();
+            if (total && exportedCount && exportedCount !== total) {
+                countText = `${exportedCount}/${total}`;
+            } else if (!exportedCount && total) {
+                countText = `${total}`;
+            }
+
+            if (progressDiv) progressDiv.style.display = 'flex';
+            setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}${fileTypeLabel}`);
+            if (progressBar) progressBar.style.width = '100%';
+            if (startButton) startButton.disabled = false; // 恢复开始导出按钮
+            if (stopButton) {
+                stopButton.style.display = 'none';
+                stopButton.disabled = false;
+            }
+            if (closeProgressBtn) closeProgressBtn.style.display = 'block';
+
+            clearExportStorage();
         }
         else if (request.action === "exportFileCompleted") {
             // 处理文件下载完成的消息
-            document.getElementById('progress-text').textContent = `已导出 ${request.count} 条回答为 ${request.fileType} 文件`;
-            document.getElementById('progress-inner').style.width = '100%';
-            document.getElementById('start-export').disabled = false; // 恢复开始导出按钮
-            document.getElementById('stop-export').style.display = 'none';
-            
+            const progressDiv = document.getElementById('export-progress');
+            const progressBar = document.getElementById('progress-inner');
+            const startButton = document.getElementById('start-export');
+            const stopButton = document.getElementById('stop-export');
+            const typeLabel = exportSummary.typeLabel || '内容';
+            const total = exportSummary.total || 0;
+            const fileType =
+                typeof request.fileType === 'string' && request.fileType.length > 0
+                    ? request.fileType.charAt(0).toUpperCase() + request.fileType.slice(1)
+                    : '';
+
+            exportSummary.count = request.count || exportSummary.current || 0;
+            exportSummary.fileType = fileType;
+
+            let countText = exportSummary.count.toString();
+            if (total && exportSummary.count && exportSummary.count !== total) {
+                countText = `${exportSummary.count}/${total}`;
+            }
+
+            if (progressDiv) progressDiv.style.display = 'flex';
+            setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}${fileType ? `（${fileType}）` : ''}`);
+            if (progressBar) progressBar.style.width = '100%';
+            if (startButton) startButton.disabled = false; // 恢复开始导出按钮
+            if (stopButton) {
+                stopButton.style.display = 'none';
+                stopButton.disabled = false;
+            }
+            if (closeProgressBtn) closeProgressBtn.style.display = 'block';
+
             // 清理缓存
-            chrome.storage.local.remove(['exportStatus', 'exportProgress']);
-            
-            // 延迟隐藏进度条
-            setTimeout(() => {
-                document.getElementById('export-progress').style.display = 'none';
-            }, 2000); // 2秒后隐藏，让用户能看到完成状态
+            clearExportStorage();
         }
         else if (request.action === "exportStopped") {
             // 处理导出被停止的消息
-            document.getElementById('progress-text').textContent = '导出已停止';
-            document.getElementById('start-export').disabled = false; // 恢复开始导出按钮
-            document.getElementById('stop-export').style.display = 'none';
+            setProgressText('导出已停止');
+            const startBtn = document.getElementById('start-export');
+            const stopBtnEl = document.getElementById('stop-export');
+            if (startBtn) startBtn.disabled = false; // 恢复开始导出按钮
+            if (stopBtnEl) {
+                stopBtnEl.style.display = 'none';
+                stopBtnEl.disabled = false;
+            }
+            if (closeProgressBtn) closeProgressBtn.style.display = 'none';
+            clearExportStorage();
             
             // 延迟隐藏进度条
+            const progressDiv = document.getElementById('export-progress');
             setTimeout(() => {
-                document.getElementById('export-progress').style.display = 'none';
+                if (progressDiv) progressDiv.style.display = 'none';
+                setProgressText('');
+                resetExportSummary();
             }, 1500);
         }
         else if (request.action === "getTotalPages") {
@@ -228,35 +358,46 @@ document.addEventListener('DOMContentLoaded', function() {
     if (stopExportBtn) {
         stopExportBtn.addEventListener('click', async function() {
             const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-            const tab = tabs[0];
-            
-            // 发送停止消息给 content script
+            const tab = tabs && tabs.length ? tabs[0] : null;
+            const stopButton = this;
+
+            if (!tab || !tab.id) {
+                console.error('未找到用于停止导出的标签页');
+                setProgressText('停止失败：未找到导出页面');
+                stopButton.disabled = false;
+                if (closeProgressBtn) closeProgressBtn.style.display = 'block';
+                return;
+            }
+
+            stopButton.disabled = true;
+            setProgressText('正在停止导出...');
+            if (closeProgressBtn) closeProgressBtn.style.display = 'none';
+
             chrome.tabs.sendMessage(tab.id, { action: "stopExport" }, function(response) {
                 if (chrome.runtime.lastError) {
                     console.error('发送停止消息失败:', chrome.runtime.lastError.message);
-                    // 即使失败，也重置界面状态
+                    setProgressText(`停止失败：${chrome.runtime.lastError.message}`);
+                    stopButton.disabled = false;
+                    if (closeProgressBtn) closeProgressBtn.style.display = 'block';
+                    const exportButton = document.getElementById('start-export');
+                    if (exportButton) exportButton.disabled = false;
+                    return;
                 }
+
+                if (!response || response.success !== true) {
+                    console.error('页面未响应停止请求');
+                    setProgressText('停止失败：页面未响应，请刷新后重试');
+                    stopButton.disabled = false;
+                    if (closeProgressBtn) closeProgressBtn.style.display = 'block';
+                    const exportButton = document.getElementById('start-export');
+                    if (exportButton) exportButton.disabled = false;
+                    return;
+                }
+
+                // 成功发送停止指令后等待 exportStopped 消息接管界面更新
             });
-            
-            // 重置界面状态
-            const progressDiv = document.getElementById('export-progress');
-            const progressBar = document.getElementById('progress-inner');
-        const progressText = document.getElementById('progress-text');
-        const exportButton = document.getElementById('start-export');
-        
-        progressBar.style.width = '0%';
-        progressText.textContent = '已停止导出';
-        // 延迟隐藏进度条，让用户能看到停止状态
-        setTimeout(() => {
-            progressDiv.style.display = 'none'; // 隐藏进度信息
-        }, 1500);
-        
-        exportButton.disabled = false; // 恢复开始导出按钮
-        this.style.display = 'none';
-        
-        // 清除缓存
-        chrome.storage.local.remove(['exportStatus', 'exportProgress']);
-    })};
+        });
+    }
     
     // 修改状态恢复函数，移除按钮文本修改的处理
     async function restoreExportStatus() {
@@ -273,27 +414,79 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('获取导出状态失败:', chrome.runtime.lastError.message);
                 return;
             }
-            if (response && response.status) {
-                const progressDiv = document.getElementById('export-progress');
-                const progressBar = document.getElementById('progress-inner');
-                const progressText = document.getElementById('progress-text');
-                const exportButton = document.getElementById('start-export');
-                const stopButton = document.getElementById('stop-export');
+            const progressDiv = document.getElementById('export-progress');
+            const progressBar = document.getElementById('progress-inner');
+            const exportButton = document.getElementById('start-export');
+            const stopButton = document.getElementById('stop-export');
 
+            if (response && response.status) {
                 if (response.status === 'exporting') {
-                    progressDiv.style.display = 'block';
-                    exportButton.disabled = true;
-                    stopButton.style.display = 'block';
-                    const percent = (response.progress.current / response.progress.total) * 100;
-                    progressBar.style.width = `${percent}%`;
-                    progressText.textContent = `正在导出第 ${response.progress.current}/${response.progress.total} 页`;
+                    if (progressDiv) progressDiv.style.display = 'flex';
+                    if (exportButton) exportButton.disabled = true;
+                    if (stopButton) {
+                        stopButton.style.display = 'block';
+                        stopButton.disabled = false;
+                    }
+                    const percent = response.progress.total ? (response.progress.current / response.progress.total) * 100 : 0;
+                    if (progressBar) progressBar.style.width = `${percent}%`;
+                    setProgressText(`正在导出 ${response.progress.current}/${response.progress.total} 条`);
+                    exportSummary.type = response.type;
+                    exportSummary.typeLabel = EXPORT_TYPE_LABELS[response.type] || '内容';
+                    exportSummary.total = response.progress.total || 0;
+                    exportSummary.current = response.progress.current || 0;
+                    exportSummary.count = 0;
+                    exportSummary.fileType = '';
+                    if (closeProgressBtn) closeProgressBtn.style.display = 'none';
                 } else if (response.status === 'completed') {
-                    progressDiv.style.display = 'block';
-                    progressBar.style.width = '100%';
-                    progressText.textContent = '导出完成';
-                    exportButton.disabled = false;
-                    stopButton.style.display = 'none';
+                    const typeLabel = EXPORT_TYPE_LABELS[response.type] || '内容';
+                    const exportedCount = response.progress.current || response.progress.total || 0;
+                    const total = response.progress.total || 0;
+                    let countText = exportedCount.toString();
+                    if (total && exportedCount && exportedCount !== total) {
+                        countText = `${exportedCount}/${total}`;
+                    }
+
+                    if (progressDiv) progressDiv.style.display = 'flex';
+                    if (progressBar) progressBar.style.width = '100%';
+                    setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}`);
+                    if (exportButton) exportButton.disabled = false;
+                    if (stopButton) {
+                        stopButton.style.display = 'none';
+                        stopButton.disabled = false;
+                    }
+                    exportSummary.type = response.type;
+                    exportSummary.typeLabel = typeLabel;
+                    exportSummary.total = total;
+                    exportSummary.current = exportedCount;
+                    exportSummary.count = exportedCount;
+                    exportSummary.fileType = '';
+                    if (closeProgressBtn) closeProgressBtn.style.display = 'block';
+                    clearExportStorage();
+                } else {
+                    if (progressDiv) progressDiv.style.display = 'none';
+                    if (progressBar) progressBar.style.width = '0%';
+                    if (exportButton) exportButton.disabled = false;
+                    if (stopButton) {
+                        stopButton.style.display = 'none';
+                        stopButton.disabled = false;
+                    }
+                    setProgressText('');
+                    resetExportSummary();
+                    if (closeProgressBtn) closeProgressBtn.style.display = 'none';
+                    clearExportStorage();
                 }
+            } else {
+                if (progressDiv) progressDiv.style.display = 'none';
+                if (progressBar) progressBar.style.width = '0%';
+                if (exportButton) exportButton.disabled = false;
+                if (stopButton) {
+                    stopButton.style.display = 'none';
+                    stopButton.disabled = false;
+                }
+                setProgressText('');
+                resetExportSummary();
+                if (closeProgressBtn) closeProgressBtn.style.display = 'none';
+                clearExportStorage();
             }
         });
     }

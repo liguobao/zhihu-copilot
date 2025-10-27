@@ -178,6 +178,10 @@ async function saveItems() {
   let savedCount = 0;
 
   for (let item of items) {
+    if (!isExporting) {
+      console.log("检测到停止信号，终止保存内容");
+      break;
+    }
     // 检查是否已达到最大数量
     if (current_count >= max_count) {
       console.log("已达到最大导出数量，停止保存");
@@ -247,6 +251,10 @@ async function saveItems() {
 }
 
 function scrollToBottom() {
+  if (!isExporting) {
+    console.log("导出已停止，跳过滚动加载");
+    return;
+  }
   if (!checkItemListEmpty(exportType)) {
     console.log("没有找到内容，跳出并刷新页面");
     saveExportStatus('refreshing');
@@ -372,6 +380,15 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function sleepWithStop(ms, step = 250) {
+  let elapsed = 0;
+  while (elapsed < ms && isExporting) {
+    const wait = Math.min(step, ms - elapsed);
+    await sleep(wait);
+    elapsed += wait;
+  }
+}
+
 // 进度保存相关函数
 function saveExportStatus(status) {
   chrome.storage.local.set({
@@ -433,6 +450,11 @@ async function continueExport() {
     // 保存当前可见的内容
     await saveItems();
 
+    if (!isExporting) {
+      console.log("停止指令已生效，结束导出循环");
+      break;
+    }
+
     if (current_count >= max_count) {
       console.log("已达到最大条数，结束导出");
       saveExportStatus('completed');
@@ -442,8 +464,17 @@ async function continueExport() {
     // 滚动到底部以加载更多内容
     scrollToBottom();
 
+    if (!isExporting) {
+      console.log("停止指令已生效，停止滚动加载");
+      break;
+    }
+
     // 等待页面加载新内容
-    await sleep(5000);
+    await sleepWithStop(5000);
+    if (!isExporting) {
+      console.log("停止指令已生效，终止等待新内容");
+      break;
+    }
 
     // 检查是否加载了新内容
     const typeConfig = TYPE_KEYS[exportType];

@@ -11,7 +11,8 @@
             margin: 0;
             box-sizing: border-box;
             overflow-x: hidden;
-            max-height: 1600px; /* 设置最大高度 */
+            min-height: 600px; /* 提高默认高度，容纳更多内容 */
+            max-height: none;
             overflow-y: auto; /* 允许垂直滚动 */
         }
         
@@ -239,7 +240,8 @@
         <button id="start-export" class="export-btn">开始导出</button>
     </div>
     
-    <div id="export-progress" style="display: none; margin-top: 10px;">
+    <div id="export-progress" style="display: none; margin-top: 10px; position: relative;">
+        <span id="close-progress" style="display: none; position: absolute; top: -8px; right: -4px; width: 18px; height: 18px; line-height: 18px; text-align: center; cursor: pointer; color: #999; font-size: 14px; font-weight: bold; z-index: 2;" role="button" aria-label="关闭导出状态">×</span>
         <div style="display: flex; align-items: center; width: 100%;">
             <div style="flex-grow: 1; background-color: #f0f0f0; border-radius: 4px; overflow: hidden; margin-right: 8px;">
                 <div id="progress-inner" style="background-color: #0084ff; height: 4px; width: 0%; transition: width 0.3s;"></div>
