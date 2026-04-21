@@ -1,6 +1,6 @@
 {
   "name": "知乎Copilot",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "显示知乎未读消息，导出回答、文章和想法",
   "manifest_version": 3,
   "background": {
@@ -25,6 +25,12 @@
       "matches": ["https://*.zhihu.com/*"],
       "js": [
         "lib/jszip.min.js",
+        "js/export/bootstrap.js",
+        "js/export/types.js",
+        "js/export/persistence.js",
+        "js/export/collector.js",
+        "js/export/file_exporter.js",
+        "js/export/session.js",
         "js/dump_data.js"
       ]
     }

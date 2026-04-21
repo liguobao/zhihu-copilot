@@ -1,42 +1,65 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // 更新消息数量显示
-    function updateMessageCount() {
-        chrome.storage.local.get(['msg1', 'msg2', 'msg3', 'unreadCount'], function(result) {
-            const defaultCount = result.msg1 || 0;
-            const followCount = result.msg2 || 0;
-            const voteCount = result.msg3 || 0;
-            const totalCount = result.unreadCount || 0;
-
-            // 更新总数
-            document.getElementById('unread-count').textContent = totalCount;
-
-            // 更新各类型消息数量
-            if (defaultCount > 0) {
-                document.getElementById('default-msg').style.display = 'block';
-                document.getElementById('default-count').textContent = defaultCount;
-            }
-            if (followCount > 0) {
-                document.getElementById('follow-msg').style.display = 'block';
-                document.getElementById('follow-count').textContent = followCount;
-            }
-            if (voteCount > 0) {
-                document.getElementById('vote-msg').style.display = 'block';
-                document.getElementById('vote-count').textContent = voteCount;
-            }
-        });
-    }
-
+document.addEventListener("DOMContentLoaded", () => {
     const EXPORT_TYPE_LABELS = {
-        answers: '回答',
-        articles: '专栏文章',
-        pins: '想法'
+        answers: "回答",
+        articles: "专栏文章",
+        pins: "想法"
+    };
+
+    const EXPORT_TARGET_PATHS = {
+        answers: "/answers",
+        articles: "/posts",
+        pins: "/pins"
     };
 
     const EXPORT_STORAGE_KEYS = {
-        STATUS: 'zhihu_export_status',
-        PROGRESS: 'zhihu_export_progress'
+        STATUS: "zhihu_export_status",
+        PROGRESS: "zhihu_export_progress"
     };
-    const LEGACY_EXPORT_STORAGE_KEYS = ['exportStatus', 'exportProgress'];
+
+    const LEGACY_EXPORT_STORAGE_KEYS = ["exportStatus", "exportProgress"];
+
+    const ZHIHU_URLS = {
+        HOME: "https://www.zhihu.com",
+        NOTIFICATIONS: "https://www.zhihu.com/notifications",
+        WRITE: "https://zhuanlan.zhihu.com/write",
+        CREATOR: "https://www.zhihu.com/creator",
+        MILESTONE: "https://www.zhihu.com/appview/creator/milestone"
+    };
+
+    const exportSummary = {
+        type: null,
+        typeLabel: "",
+        total: 0,
+        current: 0,
+        count: 0,
+        fileType: ""
+    };
+
+    const elements = {
+        unreadCount: document.getElementById("unread-count"),
+        defaultMessage: document.getElementById("default-msg"),
+        defaultCount: document.getElementById("default-count"),
+        followMessage: document.getElementById("follow-msg"),
+        followCount: document.getElementById("follow-count"),
+        voteMessage: document.getElementById("vote-msg"),
+        voteCount: document.getElementById("vote-count"),
+        notificationEntry: document.getElementById("go-to-inbox"),
+        refreshButton: document.getElementById("refresh-messages"),
+        writeArticle: document.getElementById("write-article"),
+        creatorCenter: document.getElementById("creator-center"),
+        milestone: document.getElementById("milestone"),
+        exportCount: document.getElementById("export-count"),
+        startExport: document.getElementById("start-export"),
+        stopExport: document.getElementById("stop-export"),
+        closeProgress: document.getElementById("close-progress"),
+        exportProgress: document.getElementById("export-progress"),
+        progressInner: document.getElementById("progress-inner"),
+        progressLabel: document.getElementById("progress-label")
+    };
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 
     function clearExportStorage() {
         chrome.storage.local.remove([
@@ -46,508 +69,542 @@ document.addEventListener('DOMContentLoaded', function() {
         ]);
     }
 
-    const exportSummary = {
-        type: null,
-        typeLabel: '',
-        total: 0,
-        current: 0,
-        count: 0,
-        fileType: ''
-    };
-
     function resetExportSummary() {
         exportSummary.type = null;
-        exportSummary.typeLabel = '';
+        exportSummary.typeLabel = "";
         exportSummary.total = 0;
         exportSummary.current = 0;
         exportSummary.count = 0;
-        exportSummary.fileType = '';
+        exportSummary.fileType = "";
     }
 
-    function setProgressText(message, percent) {
-        const progressLabel = document.getElementById('progress-label');
-        if (!progressLabel) {
-            return null;
+    function setProgressVisible(visible) {
+        if (elements.exportProgress) {
+            elements.exportProgress.style.display = visible ? "flex" : "none";
         }
-        if (message && message.length > 0) {
-            progressLabel.textContent = message;
-            progressLabel.style.display = 'block';
-        } else {
-            progressLabel.textContent = '';
-            progressLabel.style.display = 'none';
-        }
-        if (typeof percent === 'number' && !Number.isNaN(percent)) {
-            const normalized = Math.max(0, Math.min(100, percent));
-            progressLabel.style.color = normalized >= 60 ? '#fff' : '#666';
-        } else {
-            progressLabel.style.color = '#666';
-        }
-        return progressLabel;
     }
 
-    const closeProgressBtn = document.getElementById('close-progress');
-    if (closeProgressBtn) {
-        closeProgressBtn.addEventListener('click', function() {
-            const progressDiv = document.getElementById('export-progress');
-            const progressBar = document.getElementById('progress-inner');
-            const stopButton = document.getElementById('stop-export');
-            const startButton = document.getElementById('start-export');
-            if (progressDiv) progressDiv.style.display = 'none';
-            if (progressBar) progressBar.style.width = '0%';
-            setProgressText('');
-            if (stopButton) {
-                stopButton.style.display = 'none';
-                stopButton.disabled = false;
-            }
-            if (startButton) startButton.disabled = false;
-            resetExportSummary();
-            clearExportStorage();
-            closeProgressBtn.style.display = 'none';
-        });
-    }
-
-    // 初始化时更新消息数量
-    updateMessageCount();
-
-    // 刷新按钮点击事件 - 修改为打开知乎
-    const refreshBtn = document.getElementById('refresh-messages');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', function() {
-            chrome.tabs.create({url: 'https://www.zhihu.com'});
-        });
-    }
-    
-    // 前往消息中心
-    const inboxBtn = document.getElementById('go-to-inbox');
-    if (inboxBtn) {
-        inboxBtn.addEventListener('click', function() {
-            chrome.tabs.create({url: 'https://www.zhihu.com/notifications'});
-        });
-    }
-    
-    // 开始写专栏
-    const writeBtn = document.getElementById('write-article');
-    if (writeBtn) {
-        writeBtn.addEventListener('click', function() {
-            chrome.tabs.create({url: 'https://zhuanlan.zhihu.com/write'});
-        });
-    }
-    
-    // 创作中心
-    const creatorBtn = document.getElementById('creator-center');
-    if (creatorBtn) {
-        creatorBtn.addEventListener('click', function() {
-            chrome.tabs.create({url: 'https://www.zhihu.com/creator'});
-        });
-    }
-    
-    // 导出功能
-    const startExportBtn = document.getElementById('start-export');
-    if (startExportBtn) {
-        startExportBtn.addEventListener('click', async function() {
-            // 清空之前的缓存
-            clearExportStorage();
-            
-            const progressDiv = document.getElementById('export-progress');
-            const progressBar = document.getElementById('progress-inner');
-            const stopButton = document.getElementById('stop-export');
-            const exportButton = document.getElementById('start-export'); // 获取按钮的引用
-            
-            if (progressDiv) progressDiv.style.display = 'flex'; // 改为flex布局
-            if (exportButton) exportButton.disabled = true; // 使用引用来禁用按钮，而不是this
-            if (stopButton) {
-                stopButton.style.display = 'block'; // 显示停止按钮
-                stopButton.disabled = false;
-            }
-            if (closeProgressBtn) closeProgressBtn.style.display = 'none';
-            if (progressBar) progressBar.style.width = '0%';
-            setProgressText('准备导出...');
-        
-            // 检查当前标签页是否是知乎用户页面
-            const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-            const tab = tabs[0];
-            
-            if (!tab.url.includes('zhihu.com/people/')) {
-                setProgressText('请在知乎用户主页使用此功能');
-                if (exportButton) exportButton.disabled = false; // 使用引用来启用按钮
-                if (stopButton) stopButton.style.display = 'none';
-                return;
-            }
-
-            // 获取用户选择的导出类型
-            const exportType = document.querySelector('input[name="export-type"]:checked').value;
-            resetExportSummary();
-            exportSummary.type = exportType;
-            exportSummary.typeLabel = EXPORT_TYPE_LABELS[exportType] || '内容';
-        
-            // 获取用户输入的导出数量
-            let maxAnswers = parseInt(document.getElementById('export-count').value);
-            if (isNaN(maxAnswers) || maxAnswers < 1) {
-                maxAnswers = 50; // 默认至少导出50条
-            }
-            exportSummary.total = maxAnswers;
-        
-        // 根据用户选择的导出类型，切换到相应的标签页
-        let targetUrl;
-        if (exportType === 'answers') {
-            // 构建回答标签页的URL
-            const baseUrl = tab.url.split('?')[0].replace(/\/pins$|\/answers$|\/posts$/, '');
-            targetUrl = baseUrl + '/answers';
-        } else if (exportType === 'articles') {
-            // 构建文章标签页的URL
-            const baseUrl = tab.url.split('?')[0].replace(/\/pins$|\/answers$|\/posts$/, '');
-            targetUrl = baseUrl + '/posts';
-        } else if (exportType === 'pins') {
-            // 构建收藏夹标签页的URL
-            const baseUrl = tab.url.split('?')[0].replace(/\/pins$|\/answers$|\/posts$/, '');
-            targetUrl = baseUrl + '/pins';
-        }
-        
-        // 如果当前不在目标标签页，则切换到目标标签页
-        if (tab.url !== targetUrl) {
-            await chrome.tabs.update(tab.id, { url: targetUrl });
-            
-            // 等待页面加载完成
-            await new Promise(resolve => {
-                const listener = function(tabId, changeInfo) {
-                    if (tabId === tab.id && changeInfo.status === 'complete') {
-                        chrome.tabs.onUpdated.removeListener(listener);
-                        resolve();
-                    }
-                };
-                chrome.tabs.onUpdated.addListener(listener);
-            });
-            
-            // 给页面一些时间加载内容
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        
-        // 开始导出
-        chrome.tabs.sendMessage(tab.id, {
-            action: "startExport_"+ exportType,
-            maxAnswers: maxAnswers,
-            exportType: exportType
-        }, function(response) {
-            if (chrome.runtime.lastError) {
-                console.error('发送消息失败:', chrome.runtime.lastError.message);
-                setProgressText('导出失败：无法连接到页面，请刷新页面后重试');
-                if (exportButton) exportButton.disabled = false;
-                if (stopButton) stopButton.style.display = 'none';
-                return;
-            }
-        });
-    })};
-    
-    // 监听来自 content script 的消息
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        if (request.action === "updateProgress") {
-            const progressBar = document.getElementById('progress-inner');
-            
-            const percent = request.total ? (request.current / request.total) * 100 : 0;
-            if (progressBar) progressBar.style.width = `${percent}%`;
-            setProgressText(`正在导出 ${request.current}/${request.total} 条`, percent);
-            exportSummary.current = request.current;
-            exportSummary.total = request.total;
-            if (closeProgressBtn) closeProgressBtn.style.display = 'none';
-        }
-        else if (request.action === "exportError") {
-            setProgressText(`导出失败: ${request.error}`);
-            document.getElementById('start-export').disabled = false; // 恢复开始导出按钮
-            document.getElementById('stop-export').style.display = 'none';
-            if (closeProgressBtn) closeProgressBtn.style.display = 'block';
-        }
-        else if (request.action === "exportComplete" || request.action === "exportCompleted") {
-            const progressDiv = document.getElementById('export-progress');
-            const progressBar = document.getElementById('progress-inner');
-            const startButton = document.getElementById('start-export');
-            const stopButton = document.getElementById('stop-export');
-            const typeLabel = exportSummary.typeLabel || '内容';
-            const exportedCount = exportSummary.count || exportSummary.current || 0;
-            const total = exportSummary.total || 0;
-            const fileTypeLabel = exportSummary.fileType ? `（${exportSummary.fileType}）` : '';
-
-            let countText = exportedCount.toString();
-            if (total && exportedCount && exportedCount !== total) {
-                countText = `${exportedCount}/${total}`;
-            } else if (!exportedCount && total) {
-                countText = `${total}`;
-            }
-
-            if (progressDiv) progressDiv.style.display = 'flex';
-            setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}${fileTypeLabel}`, 100);
-            if (progressBar) progressBar.style.width = '100%';
-            if (startButton) startButton.disabled = false; // 恢复开始导出按钮
-            if (stopButton) {
-                stopButton.style.display = 'none';
-                stopButton.disabled = false;
-            }
-            if (closeProgressBtn) closeProgressBtn.style.display = 'block';
-
-            clearExportStorage();
-        }
-        else if (request.action === "exportFileCompleted") {
-            // 处理文件下载完成的消息
-            const progressDiv = document.getElementById('export-progress');
-            const progressBar = document.getElementById('progress-inner');
-            const startButton = document.getElementById('start-export');
-            const stopButton = document.getElementById('stop-export');
-            const typeLabel = exportSummary.typeLabel || '内容';
-            const total = exportSummary.total || 0;
-            const fileType =
-                typeof request.fileType === 'string' && request.fileType.length > 0
-                    ? request.fileType.charAt(0).toUpperCase() + request.fileType.slice(1)
-                    : '';
-
-            exportSummary.count = request.count || exportSummary.current || 0;
-            exportSummary.fileType = fileType;
-
-            let countText = exportSummary.count.toString();
-            if (total && exportSummary.count && exportSummary.count !== total) {
-                countText = `${exportSummary.count}/${total}`;
-            }
-
-            if (progressDiv) progressDiv.style.display = 'flex';
-            setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}${fileType ? `（${fileType}）` : ''}`, 100);
-            if (progressBar) progressBar.style.width = '100%';
-            if (startButton) startButton.disabled = false; // 恢复开始导出按钮
-            if (stopButton) {
-                stopButton.style.display = 'none';
-                stopButton.disabled = false;
-            }
-            if (closeProgressBtn) closeProgressBtn.style.display = 'block';
-
-            // 清理缓存
-            clearExportStorage();
-        }
-        else if (request.action === "exportStopped") {
-            // 处理导出被停止的消息
-            setProgressText('导出已停止');
-            const startBtn = document.getElementById('start-export');
-            const stopBtnEl = document.getElementById('stop-export');
-            if (startBtn) startBtn.disabled = false; // 恢复开始导出按钮
-            if (stopBtnEl) {
-                stopBtnEl.style.display = 'none';
-                stopBtnEl.disabled = false;
-            }
-            if (closeProgressBtn) closeProgressBtn.style.display = 'none';
-            clearExportStorage();
-            
-            // 延迟隐藏进度条
-            const progressDiv = document.getElementById('export-progress');
-            setTimeout(() => {
-                if (progressDiv) progressDiv.style.display = 'none';
-                setProgressText('');
-                resetExportSummary();
-            }, 1500);
-        }
-        else if (request.action === "getTotalPages") {
-            const pagination = document.querySelector('.Pagination');
-            let totalPages = 5; // 默认值
-            
-            if (pagination) {
-                const buttons = pagination.querySelectorAll('button');
-                if (buttons.length >= 2) {
-                    const totalPage = parseInt(buttons[buttons.length - 2].textContent);
-                    if (!isNaN(totalPage)) {
-                        totalPages = totalPage;
-                    }
-                }
-            }
-            
-            sendResponse({ totalPages: totalPages });
-            return true; // 保持消息通道开放以进行异步响应
-        }
-    });
-    
-    // 添加停止按钮事件
-    const stopExportBtn = document.getElementById('stop-export');
-    if (stopExportBtn) {
-        stopExportBtn.addEventListener('click', async function() {
-            const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-            const tab = tabs && tabs.length ? tabs[0] : null;
-            const stopButton = this;
-
-            if (!tab || !tab.id) {
-                console.error('未找到用于停止导出的标签页');
-                setProgressText('停止失败：未找到导出页面');
-                stopButton.disabled = false;
-                if (closeProgressBtn) closeProgressBtn.style.display = 'block';
-                return;
-            }
-
-            stopButton.disabled = true;
-            setProgressText('正在停止导出...');
-            if (closeProgressBtn) closeProgressBtn.style.display = 'none';
-
-            chrome.tabs.sendMessage(tab.id, { action: "stopExport" }, function(response) {
-                if (chrome.runtime.lastError) {
-                    console.error('发送停止消息失败:', chrome.runtime.lastError.message);
-                    setProgressText(`停止失败：${chrome.runtime.lastError.message}`);
-                    stopButton.disabled = false;
-                    if (closeProgressBtn) closeProgressBtn.style.display = 'block';
-                    const exportButton = document.getElementById('start-export');
-                    if (exportButton) exportButton.disabled = false;
-                    return;
-                }
-
-                if (!response || response.success !== true) {
-                    console.error('页面未响应停止请求');
-                    setProgressText('停止失败：页面未响应，请刷新后重试');
-                    stopButton.disabled = false;
-                    if (closeProgressBtn) closeProgressBtn.style.display = 'block';
-                    const exportButton = document.getElementById('start-export');
-                    if (exportButton) exportButton.disabled = false;
-                    return;
-                }
-
-                // 成功发送停止指令后等待 exportStopped 消息接管界面更新
-            });
-        });
-    }
-    
-    // 修改状态恢复函数，移除按钮文本修改的处理
-    async function restoreExportStatus() {
-        const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-        const tab = tabs[0];
-        
-        if (!tab.url.includes('zhihu.com/people/')) {
+    function setProgressPercent(percent) {
+        if (!elements.progressInner) {
             return;
         }
 
-        // 获取导出状态
-        chrome.tabs.sendMessage(tab.id, { action: "getExportStatus" }, function(response) {
-            if (chrome.runtime.lastError) {
-                console.error('获取导出状态失败:', chrome.runtime.lastError.message);
+        const normalized = Math.max(0, Math.min(100, percent || 0));
+        elements.progressInner.style.width = `${normalized}%`;
+    }
+
+    function setProgressText(message, percent) {
+        if (!elements.progressLabel) {
+            return;
+        }
+
+        if (message) {
+            elements.progressLabel.textContent = message;
+            elements.progressLabel.style.display = "block";
+        } else {
+            elements.progressLabel.textContent = "";
+            elements.progressLabel.style.display = "none";
+        }
+
+        const normalized = Math.max(0, Math.min(100, percent || 0));
+        elements.progressLabel.style.color = normalized >= 60 ? "#fff" : "#666";
+    }
+
+    function setExportButtons(isExporting) {
+        if (elements.startExport) {
+            elements.startExport.disabled = isExporting;
+        }
+
+        if (!elements.stopExport) {
+            return;
+        }
+
+        elements.stopExport.style.display = isExporting ? "block" : "none";
+        elements.stopExport.disabled = false;
+    }
+
+    function showCloseProgressButton(visible) {
+        if (elements.closeProgress) {
+            elements.closeProgress.style.display = visible ? "block" : "none";
+        }
+    }
+
+    function openTab(url) {
+        chrome.tabs.create({ url });
+    }
+
+    function bindPopupLink(element, url, handler) {
+        if (!element) {
+            return;
+        }
+
+        element.addEventListener("click", async event => {
+            event.preventDefault();
+
+            if (typeof handler === "function") {
+                await handler();
                 return;
             }
-            const progressDiv = document.getElementById('export-progress');
-            const progressBar = document.getElementById('progress-inner');
-            const exportButton = document.getElementById('start-export');
-            const stopButton = document.getElementById('stop-export');
 
-            if (response && response.status) {
-                if (response.status === 'exporting') {
-                    if (progressDiv) progressDiv.style.display = 'flex';
-                    if (exportButton) exportButton.disabled = true;
-                    if (stopButton) {
-                        stopButton.style.display = 'block';
-                        stopButton.disabled = false;
-                    }
-                    const percent = response.progress.total ? (response.progress.current / response.progress.total) * 100 : 0;
-                    if (progressBar) progressBar.style.width = `${percent}%`;
-                    setProgressText(`正在导出 ${response.progress.current}/${response.progress.total} 条`, percent);
-                    exportSummary.type = response.type;
-                    exportSummary.typeLabel = EXPORT_TYPE_LABELS[response.type] || '内容';
-                    exportSummary.total = response.progress.total || 0;
-                    exportSummary.current = response.progress.current || 0;
-                    exportSummary.count = 0;
-                    exportSummary.fileType = '';
-                    if (closeProgressBtn) closeProgressBtn.style.display = 'none';
-                } else if (response.status === 'completed') {
-                    const typeLabel = EXPORT_TYPE_LABELS[response.type] || '内容';
-                    const exportedCount = response.progress.current || response.progress.total || 0;
-                    const total = response.progress.total || 0;
-                    let countText = exportedCount.toString();
-                    if (total && exportedCount && exportedCount !== total) {
-                        countText = `${exportedCount}/${total}`;
-                    }
+            openTab(url);
+        });
+    }
 
-                    if (progressDiv) progressDiv.style.display = 'flex';
-                    if (progressBar) progressBar.style.width = '100%';
-                    setProgressText(`导出完成：共导出 ${countText} 条${typeLabel}`, 100);
-                    if (exportButton) exportButton.disabled = false;
-                    if (stopButton) {
-                        stopButton.style.display = 'none';
-                        stopButton.disabled = false;
-                    }
-                    exportSummary.type = response.type;
-                    exportSummary.typeLabel = typeLabel;
-                    exportSummary.total = total;
-                    exportSummary.current = exportedCount;
-                    exportSummary.count = exportedCount;
-                    exportSummary.fileType = '';
-                    if (closeProgressBtn) closeProgressBtn.style.display = 'block';
-                    clearExportStorage();
-                } else {
-                    if (progressDiv) progressDiv.style.display = 'none';
-                    if (progressBar) progressBar.style.width = '0%';
-                    if (exportButton) exportButton.disabled = false;
-                    if (stopButton) {
-                        stopButton.style.display = 'none';
-                        stopButton.disabled = false;
-                    }
-                    setProgressText('');
-                    resetExportSummary();
-                    if (closeProgressBtn) closeProgressBtn.style.display = 'none';
-                    clearExportStorage();
+    async function queryActiveTab() {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        return tabs && tabs.length ? tabs[0] : null;
+    }
+
+    function isZhihuProfilePage(url) {
+        return /^https:\/\/(?:[^/]+\.)?zhihu\.com\/people\//.test(url || "");
+    }
+
+    function normalizeProfileBaseUrl(url) {
+        return String(url || "")
+            .split(/[?#]/)[0]
+            .replace(/\/$/, "")
+            .replace(/\/(?:answers|posts|pins)$/, "");
+    }
+
+    function buildTargetUrl(url, exportType) {
+        const targetPath = EXPORT_TARGET_PATHS[exportType];
+        if (!targetPath) {
+            return "";
+        }
+
+        return `${normalizeProfileBaseUrl(url)}${targetPath}`;
+    }
+
+    function waitForTabComplete(tabId, timeoutMs = 15000) {
+        return new Promise((resolve, reject) => {
+            let timeoutId = null;
+
+            const cleanup = () => {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
                 }
-            } else {
-                if (progressDiv) progressDiv.style.display = 'none';
-                if (progressBar) progressBar.style.width = '0%';
-                if (exportButton) exportButton.disabled = false;
-                if (stopButton) {
-                    stopButton.style.display = 'none';
-                    stopButton.disabled = false;
+                chrome.tabs.onUpdated.removeListener(listener);
+            };
+
+            const listener = (updatedTabId, changeInfo) => {
+                if (updatedTabId !== tabId || changeInfo.status !== "complete") {
+                    return;
                 }
-                setProgressText('');
-                resetExportSummary();
-                if (closeProgressBtn) closeProgressBtn.style.display = 'none';
-                clearExportStorage();
+
+                cleanup();
+                resolve();
+            };
+
+            timeoutId = setTimeout(() => {
+                cleanup();
+                reject(new Error("页面加载超时，请刷新后重试"));
+            }, timeoutMs);
+
+            chrome.tabs.onUpdated.addListener(listener);
+        });
+    }
+
+    function sendTabMessage(tabId, message) {
+        return new Promise((resolve, reject) => {
+            chrome.tabs.sendMessage(tabId, message, response => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+
+                resolve(response);
+            });
+        });
+    }
+
+    async function sendTabMessageWithRetry(tabId, message, retries = 2) {
+        let lastError = null;
+
+        for (let attempt = 0; attempt <= retries; attempt += 1) {
+            try {
+                return await sendTabMessage(tabId, message);
+            } catch (error) {
+                lastError = error;
+                if (attempt === retries) {
+                    break;
+                }
+                await sleep(600);
+            }
+        }
+
+        throw lastError || new Error("页面消息发送失败");
+    }
+
+    function clampProgress(current, total) {
+        if (!total) {
+            return 0;
+        }
+
+        return Math.max(0, Math.min(100, (current / total) * 100));
+    }
+
+    function formatExportCount(count, total) {
+        if (!total) {
+            return String(count || 0);
+        }
+
+        if (!count) {
+            return String(total);
+        }
+
+        return count === total ? String(count) : `${count}/${total}`;
+    }
+
+    function updateProgressBar(current, total) {
+        const percent = clampProgress(current, total);
+        setProgressPercent(percent);
+        setProgressText(`正在导出 ${current}/${total} 条`, percent);
+        exportSummary.current = current;
+        exportSummary.total = total;
+        showCloseProgressButton(false);
+    }
+
+    function resetProgressUi() {
+        setProgressVisible(false);
+        setProgressPercent(0);
+        setProgressText("");
+        setExportButtons(false);
+        showCloseProgressButton(false);
+        resetExportSummary();
+    }
+
+    function updateMessageCount() {
+        chrome.storage.local.get(["msg1", "msg2", "msg3", "unreadCount"], result => {
+            const defaultCount = result.msg1 || 0;
+            const followCount = result.msg2 || 0;
+            const voteCount = result.msg3 || 0;
+            const totalCount = result.unreadCount || 0;
+
+            if (elements.unreadCount) {
+                elements.unreadCount.textContent = totalCount;
+            }
+
+            if (elements.defaultMessage && elements.defaultCount) {
+                elements.defaultMessage.style.display = defaultCount > 0 ? "block" : "none";
+                elements.defaultCount.textContent = defaultCount;
+            }
+
+            if (elements.followMessage && elements.followCount) {
+                elements.followMessage.style.display = followCount > 0 ? "block" : "none";
+                elements.followCount.textContent = followCount;
+            }
+
+            if (elements.voteMessage && elements.voteCount) {
+                elements.voteMessage.style.display = voteCount > 0 ? "block" : "none";
+                elements.voteCount.textContent = voteCount;
             }
         });
     }
 
-    // 初始化时恢复导出状态
-    restoreExportStatus();
+    function getSelectedExportType() {
+        return document.querySelector('input[name="export-type"]:checked')?.value || "answers";
+    }
 
-    // 里程碑点击事件
-    const milestoneBtn = document.getElementById('milestone');
-    if (milestoneBtn) {
-        milestoneBtn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            const milestoneUrl = this.href;
-            
-            // 查询所有打开的知乎标签页
-        const tabs = await chrome.tabs.query({ url: 'https://*.zhihu.com/*' });
-        
-        if (tabs.length > 0) {
-            // 如果已经有知乎标签页，在新标签页打开
-            chrome.tabs.create({ url: milestoneUrl });
-        } else {
-            // 如果没有知乎标签页，创建新窗口
-            chrome.windows.create({
-                url: milestoneUrl,
-                type: 'normal',
-                width: 800,
-                height: 600,
-                left: Math.round((screen.width - 800) / 2),
-                top: Math.round((screen.height - 600) / 2),
-                focused: true
+    function getRequestedExportCount() {
+        const rawValue = Number.parseInt(elements.exportCount?.value, 10);
+        return Number.isFinite(rawValue) && rawValue > 0 ? rawValue : 50;
+    }
+
+    async function prepareExportTab(tab, exportType) {
+        const targetUrl = buildTargetUrl(tab.url, exportType);
+        const currentUrl = String(tab.url || "").split(/[?#]/)[0].replace(/\/$/, "");
+
+        if (currentUrl !== targetUrl) {
+            await chrome.tabs.update(tab.id, { url: targetUrl });
+            await waitForTabComplete(tab.id);
+            await sleep(1000);
+        }
+
+        return targetUrl;
+    }
+
+    async function detectExportTotal(tabId, exportType, requestedCount) {
+        try {
+            // 先读取主页 tab 上的真实总数，再把“本次上限”裁到用户输入范围内，
+            // 这样进度条展示的是实际可导出的数量，而不是固定按输入值盲算。
+            const response = await sendTabMessageWithRetry(tabId, {
+                action: "getExportSummary",
+                exportType
             });
+
+            const totalCount = Number(response?.totalCount);
+            if (!Number.isFinite(totalCount)) {
+                return {
+                    totalCount: null,
+                    effectiveTotal: requestedCount
+                };
+            }
+
+            return {
+                totalCount: Math.max(0, totalCount),
+                effectiveTotal: Math.min(requestedCount, Math.max(0, totalCount))
+            };
+        } catch (error) {
+            console.warn("获取导出总数失败，回退到用户输入数量:", error);
+            return {
+                totalCount: null,
+                effectiveTotal: requestedCount
+            };
+        }
+    }
+
+    async function startExport() {
+        clearExportStorage();
+        setProgressVisible(true);
+        setProgressPercent(0);
+        setProgressText("准备导出...");
+        setExportButtons(true);
+        showCloseProgressButton(false);
+        resetExportSummary();
+
+        const tab = await queryActiveTab();
+        if (!tab?.id || !isZhihuProfilePage(tab.url)) {
+            setProgressText("请在知乎用户主页使用此功能");
+            setExportButtons(false);
+            showCloseProgressButton(true);
+            return;
+        }
+
+        const exportType = getSelectedExportType();
+        const requestedCount = getRequestedExportCount();
+
+        exportSummary.type = exportType;
+        exportSummary.typeLabel = EXPORT_TYPE_LABELS[exportType] || "内容";
+        exportSummary.total = requestedCount;
+
+        try {
+            await prepareExportTab(tab, exportType);
+
+            const { totalCount, effectiveTotal } = await detectExportTotal(
+                tab.id,
+                exportType,
+                requestedCount
+            );
+
+            if (totalCount === 0) {
+                setProgressText(`当前页暂无可导出的${exportSummary.typeLabel}`);
+                setExportButtons(false);
+                showCloseProgressButton(true);
+                return;
+            }
+
+            exportSummary.total = effectiveTotal;
+
+            if (Number.isFinite(totalCount)) {
+                const progressMessage =
+                    totalCount > effectiveTotal
+                        ? `检测到共 ${totalCount} 条${exportSummary.typeLabel}，本次将导出前 ${effectiveTotal} 条`
+                        : `检测到共 ${totalCount} 条${exportSummary.typeLabel}，准备导出...`;
+                setProgressText(progressMessage);
+            }
+
+            const response = await sendTabMessageWithRetry(tab.id, {
+                action: `startExport_${exportType}`,
+                maxAnswers: effectiveTotal,
+                exportType
+            });
+
+            if (response && response.success === false) {
+                throw new Error(response.error || "页面未能启动导出");
+            }
+        } catch (error) {
+            console.error("启动导出失败:", error);
+            setProgressText(`导出失败：${error.message || "无法连接到页面，请刷新后重试"}`);
+            setExportButtons(false);
+            showCloseProgressButton(true);
+        }
+    }
+
+    async function stopExport() {
+        const tab = await queryActiveTab();
+        if (!tab?.id) {
+            setProgressText("停止失败：未找到导出页面");
+            showCloseProgressButton(true);
+            return;
+        }
+
+        if (elements.stopExport) {
+            elements.stopExport.disabled = true;
+        }
+
+        setProgressText("正在停止导出...");
+        showCloseProgressButton(false);
+
+        try {
+            const response = await sendTabMessage(tab.id, { action: "stopExport" });
+            if (!response || response.success !== true) {
+                throw new Error("页面未响应，请刷新后重试");
+            }
+        } catch (error) {
+            console.error("发送停止消息失败:", error);
+            setProgressText(`停止失败：${error.message}`);
+            if (elements.stopExport) {
+                elements.stopExport.disabled = false;
+            }
+            if (elements.startExport) {
+                elements.startExport.disabled = false;
+            }
+            showCloseProgressButton(true);
+        }
+    }
+
+    function handleExportCompleted(fileType) {
+        const exportedCount = exportSummary.count || exportSummary.current || 0;
+        const countText = formatExportCount(exportedCount, exportSummary.total || 0);
+        const fileTypeLabel = fileType ? `（${fileType}）` : "";
+
+        setProgressVisible(true);
+        setProgressPercent(100);
+        setProgressText(
+            `导出完成：共导出 ${countText} 条${exportSummary.typeLabel || "内容"}${fileTypeLabel}`,
+            100
+        );
+        setExportButtons(false);
+        showCloseProgressButton(true);
+        clearExportStorage();
+    }
+
+    async function restoreExportStatus() {
+        const tab = await queryActiveTab();
+        if (!tab?.id || !isZhihuProfilePage(tab.url)) {
+            return;
+        }
+
+        try {
+            const response = await sendTabMessage(tab.id, { action: "getExportStatus" });
+            if (!response?.status) {
+                return;
+            }
+
+            if (response.status === "exporting") {
+                setProgressVisible(true);
+                setExportButtons(true);
+                exportSummary.type = response.type;
+                exportSummary.typeLabel = EXPORT_TYPE_LABELS[response.type] || "内容";
+                exportSummary.total = response.progress?.total || 0;
+                exportSummary.current = response.progress?.current || 0;
+                exportSummary.count = 0;
+                exportSummary.fileType = "";
+                updateProgressBar(exportSummary.current, exportSummary.total);
+                return;
+            }
+
+            if (response.status === "completed") {
+                exportSummary.type = response.type;
+                exportSummary.typeLabel = EXPORT_TYPE_LABELS[response.type] || "内容";
+                exportSummary.total = response.progress?.total || 0;
+                exportSummary.current =
+                    response.progress?.current || response.progress?.total || 0;
+                exportSummary.count = exportSummary.current;
+                exportSummary.fileType = "";
+                handleExportCompleted("");
+                return;
+            }
+
+            resetProgressUi();
+            clearExportStorage();
+        } catch (error) {
+            console.error("获取导出状态失败:", error);
+        }
+    }
+
+    if (elements.closeProgress) {
+        elements.closeProgress.addEventListener("click", () => {
+            resetProgressUi();
+            clearExportStorage();
+        });
+    }
+
+    if (elements.refreshButton) {
+        elements.refreshButton.addEventListener("click", () => {
+            openTab(ZHIHU_URLS.HOME);
+        });
+    }
+
+    if (elements.notificationEntry) {
+        elements.notificationEntry.addEventListener("click", () => {
+            openTab(ZHIHU_URLS.NOTIFICATIONS);
+        });
+    }
+
+    bindPopupLink(elements.writeArticle, ZHIHU_URLS.WRITE);
+    bindPopupLink(elements.creatorCenter, ZHIHU_URLS.CREATOR);
+    bindPopupLink(elements.milestone, ZHIHU_URLS.MILESTONE, async () => {
+        const tabs = await chrome.tabs.query({ url: "https://*.zhihu.com/*" });
+
+        if (tabs.length > 0) {
+            openTab(ZHIHU_URLS.MILESTONE);
+            return;
+        }
+
+        chrome.windows.create({
+            url: ZHIHU_URLS.MILESTONE,
+            type: "normal",
+            width: 800,
+            height: 600,
+            left: Math.round((screen.width - 800) / 2),
+            top: Math.round((screen.height - 600) / 2),
+            focused: true
+        });
+    });
+
+    if (elements.startExport) {
+        elements.startExport.addEventListener("click", () => {
+            void startExport();
+        });
+    }
+
+    if (elements.stopExport) {
+        elements.stopExport.addEventListener("click", () => {
+            void stopExport();
+        });
+    }
+
+    chrome.runtime.onMessage.addListener(request => {
+        if (request.action === "updateProgress") {
+            updateProgressBar(request.current || 0, request.total || 0);
+            return;
+        }
+
+        if (request.action === "exportError") {
+            setProgressText(`导出失败: ${request.error}`);
+            setExportButtons(false);
+            showCloseProgressButton(true);
+            return;
+        }
+
+        if (request.action === "exportFileCompleted") {
+            exportSummary.count = request.count || exportSummary.current || 0;
+            exportSummary.fileType =
+                typeof request.fileType === "string" && request.fileType.length > 0
+                    ? request.fileType.charAt(0).toUpperCase() + request.fileType.slice(1)
+                    : "";
+            handleExportCompleted(exportSummary.fileType);
+            return;
+        }
+
+        if (request.action === "exportComplete" || request.action === "exportCompleted") {
+            handleExportCompleted(exportSummary.fileType);
+            return;
+        }
+
+        if (request.action === "exportStopped") {
+            setProgressText("导出已停止");
+            setExportButtons(false);
+            showCloseProgressButton(false);
+            clearExportStorage();
+
+            setTimeout(() => {
+                resetProgressUi();
+            }, 1500);
         }
     });
 
-    // 关闭 iframe 按钮点击事件
-    const closeMilestoneBtn = document.getElementById('close-milestone');
-    if (closeMilestoneBtn) {
-        closeMilestoneBtn.addEventListener('click', function() {
-            const iframeContainer = document.getElementById('milestone-iframe');
-            const milestoneFrame = document.getElementById('milestone-frame');
-            if (iframeContainer) iframeContainer.style.display = 'none';
-            if (milestoneFrame) milestoneFrame.src = ''; // 清空 iframe 内容
-        });
-    }
-
-    // 点击遮罩层关闭 iframe
-    const milestoneIframe = document.getElementById('milestone-iframe');
-    if (milestoneIframe) {
-        milestoneIframe.addEventListener('click', function(e) {
-            if (e.target === this) {
-                const milestoneFrame = document.getElementById('milestone-frame');
-                this.style.display = 'none';
-                if (milestoneFrame) milestoneFrame.src = ''; // 清空 iframe 内容
-            }
-        });
-    }
-}
+    updateMessageCount();
+    void restoreExportStatus();
 });

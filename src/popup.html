@@ -101,6 +101,41 @@
             font-size: 12px;
             color: #666;
         }
+        .notification-entry {
+            appearance: none;
+            display: block;
+            width: 100%;
+            background-color: #f0f7ff;
+            border: 1px solid transparent;
+            color: inherit;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+        }
+        .notification-entry:hover {
+            background-color: #e8f2ff;
+            border-color: #c7ddff;
+            transform: translateY(-1px);
+        }
+        .notification-entry:focus-visible {
+            outline: none;
+            border-color: #0084ff;
+            box-shadow: 0 0 0 2px rgba(0, 132, 255, 0.18);
+        }
+        .notification-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #2f6fb6;
+        }
+        .notification-action {
+            font-size: 11px;
+            color: #0084ff;
+        }
         .notification-count {
             font-weight: bold;
             color: #0084ff;
@@ -170,7 +205,7 @@
             <img src="img/zhihu-logo_48.png" alt="知乎Copilot">
             <div class="header-title">
                 <h1><a href="https://www.zhihu.com" target="_blank" style="text-decoration: none; color: #0084ff;">知乎Copilot</a></h1>
-                <span class="version">v0.3.1</span>
+                <span class="version">v0.3.2</span>
             </div>
         </div>
         <div class="header-actions">
@@ -179,7 +214,11 @@
         </div>
     </div>
     
-    <div class="notification">
+    <button type="button" class="notification notification-entry" id="go-to-inbox">
+        <div class="notification-header">
+            <span>消息中心</span>
+            <span class="notification-action">查看全部</span>
+        </div>
         <div id="notification-text">
             您有 <span class="notification-count" id="unread-count">0</span> 条未读消息
         </div>
@@ -194,11 +233,7 @@
                 赞同消息: <span id="vote-count">0</span> 条
             </div>
         </div>
-    </div>
-    
-    <a href="#" class="menu-item" id="go-to-inbox">
-        <i>📬</i> 前往消息中心
-    </a>
+    </button>
     
     <a href="https://zhuanlan.zhihu.com/write" class="menu-item" id="write-article">
         <i>✍️</i> 开始写专栏

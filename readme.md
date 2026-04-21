@@ -21,9 +21,14 @@
 ├── src/options.html
 ├── src/options.js
 ├── src/js/
-│   ├── export-answers.js
-│   ├── export-articles.js
-│   └── export-ideas.js
+│   ├── dump_data.js
+│   └── export/
+│       ├── bootstrap.js
+│       ├── types.js
+│       ├── persistence.js
+│       ├── collector.js
+│       ├── file_exporter.js
+│       └── session.js
 └── src/img/
     ├── zhihu-logo_48.png
     ├── zhihu_logged_in.png
