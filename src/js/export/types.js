@@ -22,17 +22,19 @@
           title: parsed?.title || "未知标题"
         };
       },
-      createRecord: ({ title, id, content, url }) => ({
+      createRecord: ({ title, id, content, url, images = [] }) => ({
         question_title: title,
         answer_id: id,
         answer_content: content,
-        answer_url: url
+        answer_url: url,
+        images
       }),
       readRecord: (record) => ({
         title: record.question_title,
         id: record.answer_id,
         content: record.answer_content,
-        url: record.answer_url
+        url: record.answer_url,
+        images: Array.isArray(record.images) ? record.images : []
       })
     },
     articles: {
@@ -52,17 +54,19 @@
           title: parsed?.title || "未知标题"
         };
       },
-      createRecord: ({ title, id, content, url }) => ({
+      createRecord: ({ title, id, content, url, images = [] }) => ({
         title,
         data_id: id,
         data_content: content,
-        data_url: url
+        data_url: url,
+        images
       }),
       readRecord: (record) => ({
         title: record.title,
         id: record.data_id,
         content: record.data_content,
-        url: record.data_url
+        url: record.data_url,
+        images: Array.isArray(record.images) ? record.images : []
       })
     },
     pins: {
@@ -80,17 +84,19 @@
         id: extractPinIdFromItem(item),
         title: extractPinTitle(item)
       }),
-      createRecord: ({ title, id, content, url }) => ({
+      createRecord: ({ title, id, content, url, images = [] }) => ({
         title,
         pin_id: id,
         pin_content: content,
-        pin_url: url
+        pin_url: url,
+        images
       }),
       readRecord: (record) => ({
         title: record.title,
         id: record.pin_id,
         content: record.pin_content,
-        url: record.pin_url
+        url: record.pin_url,
+        images: Array.isArray(record.images) ? record.images : []
       })
     }
   };

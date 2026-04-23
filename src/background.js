@@ -422,3 +422,57 @@ updateIcon();
 function createOptimizedCanvasContext(canvas) {
   return canvas.getContext('2d', { willReadFrequently: true });
 }
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
+}
+
+async function fetchImageAsset(url) {
+  const response = await fetch(url, {
+    credentials: 'omit'
+  });
+
+  if (!response.ok) {
+    throw new Error(`图片抓取失败: HTTP ${response.status}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+
+  return {
+    base64Data: arrayBufferToBase64(arrayBuffer),
+    contentType: response.headers.get('content-type') || '',
+    finalUrl: response.url || url
+  };
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action !== 'fetchImageAsset') {
+    return false;
+  }
+
+  fetchImageAsset(request.url)
+    .then(result => {
+      sendResponse({
+        success: true,
+        ...result
+      });
+    })
+    .catch(error => {
+      console.error('抓取导出图片失败:', error);
+      sendResponse({
+        success: false,
+        error: error?.message || '未知错误'
+      });
+    });
+
+  return true;
+});

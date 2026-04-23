@@ -13,7 +13,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const EXPORT_STORAGE_KEYS = {
         STATUS: "zhihu_export_status",
-        PROGRESS: "zhihu_export_progress"
+        PROGRESS: "zhihu_export_progress",
+        TASK: "zhihu_export_task",
+        PREFERENCES: "zhihu_export_preferences"
+    };
+
+    const EXPORT_STATUS = {
+        PREPARING: "preparing",
+        EXPORTING: "exporting",
+        REFRESHING: "refreshing",
+        COMPLETED: "completed"
     };
 
     const LEGACY_EXPORT_STORAGE_KEYS = ["exportStatus", "exportProgress"];
@@ -48,6 +57,8 @@ document.addEventListener("DOMContentLoaded", () => {
         writeArticle: document.getElementById("write-article"),
         creatorCenter: document.getElementById("creator-center"),
         milestone: document.getElementById("milestone"),
+        exportCountAll: document.getElementById("export-count-all"),
+        exportCountCustomMode: document.getElementById("export-count-custom-mode"),
         exportCount: document.getElementById("export-count"),
         startExport: document.getElementById("start-export"),
         stopExport: document.getElementById("stop-export"),
@@ -61,10 +72,29 @@ document.addEventListener("DOMContentLoaded", () => {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    function storageGet(keys) {
+        return new Promise(resolve => {
+            chrome.storage.local.get(keys, resolve);
+        });
+    }
+
+    function storageSet(values) {
+        return new Promise(resolve => {
+            chrome.storage.local.set(values, resolve);
+        });
+    }
+
+    function storageRemove(keys) {
+        return new Promise(resolve => {
+            chrome.storage.local.remove(keys, resolve);
+        });
+    }
+
     function clearExportStorage() {
-        chrome.storage.local.remove([
+        return storageRemove([
             EXPORT_STORAGE_KEYS.STATUS,
             EXPORT_STORAGE_KEYS.PROGRESS,
+            EXPORT_STORAGE_KEYS.TASK,
             ...LEGACY_EXPORT_STORAGE_KEYS
         ]);
     }
@@ -256,11 +286,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateProgressBar(current, total) {
-        const percent = clampProgress(current, total);
+        const hasTotal = Number.isFinite(total) && total > 0;
+        const percent = hasTotal ? clampProgress(current, total) : 0;
         setProgressPercent(percent);
-        setProgressText(`正在导出 ${current}/${total} 条`, percent);
+        setProgressText(
+            hasTotal ? `正在导出 ${current}/${total} 条` : `正在导出 ${current} 条`,
+            percent
+        );
         exportSummary.current = current;
-        exportSummary.total = total;
+        exportSummary.total = hasTotal ? total : 0;
         showCloseProgressButton(false);
     }
 
@@ -305,9 +339,85 @@ document.addEventListener("DOMContentLoaded", () => {
         return document.querySelector('input[name="export-type"]:checked')?.value || "answers";
     }
 
+    function setSelectedExportType(exportType) {
+        const targetInput = document.querySelector(`input[name="export-type"][value="${exportType}"]`);
+        if (targetInput) {
+            targetInput.checked = true;
+        }
+    }
+
+    function isExportAllSelected() {
+        return Boolean(elements.exportCountAll?.checked);
+    }
+
+    function updateExportCountInputState() {
+        if (!elements.exportCount) {
+            return;
+        }
+
+        elements.exportCount.disabled = isExportAllSelected();
+    }
+
     function getRequestedExportCount() {
         const rawValue = Number.parseInt(elements.exportCount?.value, 10);
-        return Number.isFinite(rawValue) && rawValue > 0 ? rawValue : 50;
+        return Number.isFinite(rawValue) && rawValue > 0 ? rawValue : 10;
+    }
+
+    function getExportPreferences() {
+        return {
+            type: getSelectedExportType(),
+            countMode: isExportAllSelected() ? "all" : "custom",
+            count: getRequestedExportCount()
+        };
+    }
+
+    function applyExportPreferences(preferences = {}) {
+        if (preferences.type) {
+            setSelectedExportType(preferences.type);
+        }
+
+        if (preferences.countMode === "all" && elements.exportCountAll) {
+            elements.exportCountAll.checked = true;
+        } else if (elements.exportCountCustomMode) {
+            elements.exportCountCustomMode.checked = true;
+        }
+
+        if (Number.isFinite(preferences.count) && preferences.count > 0 && elements.exportCount) {
+            elements.exportCount.value = String(preferences.count);
+        }
+
+        updateExportCountInputState();
+    }
+
+    async function saveExportPreferences() {
+        await storageSet({
+            [EXPORT_STORAGE_KEYS.PREFERENCES]: getExportPreferences()
+        });
+    }
+
+    async function restoreExportPreferences() {
+        const result = await storageGet(EXPORT_STORAGE_KEYS.PREFERENCES);
+        applyExportPreferences(result[EXPORT_STORAGE_KEYS.PREFERENCES] || {});
+    }
+
+    async function savePendingExportTask(task) {
+        await storageSet({
+            [EXPORT_STORAGE_KEYS.TASK]: {
+                ...task,
+                status: EXPORT_STATUS.PREPARING,
+                updatedAt: Date.now()
+            },
+            [EXPORT_STORAGE_KEYS.STATUS]: {
+                status: EXPORT_STATUS.PREPARING,
+                type: task.type,
+                timestamp: Date.now()
+            },
+            [EXPORT_STORAGE_KEYS.PROGRESS]: {
+                current: 0,
+                total: Number.isFinite(task.maxItems) ? task.maxItems : 0,
+                timestamp: Date.now()
+            }
+        });
     }
 
     async function prepareExportTab(tab, exportType) {
@@ -323,7 +433,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return targetUrl;
     }
 
-    async function detectExportTotal(tabId, exportType, requestedCount) {
+    async function detectExportTotal(tabId, exportType, requestedCount, exportAll) {
         try {
             // 先读取主页 tab 上的真实总数，再把“本次上限”裁到用户输入范围内，
             // 这样进度条展示的是实际可导出的数量，而不是固定按输入值盲算。
@@ -336,25 +446,31 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!Number.isFinite(totalCount)) {
                 return {
                     totalCount: null,
-                    effectiveTotal: requestedCount
+                    effectiveTotal: exportAll ? null : requestedCount,
+                    isUnlimited: exportAll
                 };
             }
 
             return {
                 totalCount: Math.max(0, totalCount),
-                effectiveTotal: Math.min(requestedCount, Math.max(0, totalCount))
+                effectiveTotal: exportAll
+                    ? Math.max(0, totalCount)
+                    : Math.min(requestedCount, Math.max(0, totalCount)),
+                isUnlimited: false
             };
         } catch (error) {
             console.warn("获取导出总数失败，回退到用户输入数量:", error);
             return {
                 totalCount: null,
-                effectiveTotal: requestedCount
+                effectiveTotal: exportAll ? null : requestedCount,
+                isUnlimited: exportAll
             };
         }
     }
 
     async function startExport() {
-        clearExportStorage();
+        await saveExportPreferences();
+        await clearExportStorage();
         setProgressVisible(true);
         setProgressPercent(0);
         setProgressText("准备导出...");
@@ -371,41 +487,62 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const exportType = getSelectedExportType();
-        const requestedCount = getRequestedExportCount();
+        const exportAll = isExportAllSelected();
+        const requestedCount = exportAll ? null : getRequestedExportCount();
+        const targetUrl = buildTargetUrl(tab.url, exportType);
 
         exportSummary.type = exportType;
         exportSummary.typeLabel = EXPORT_TYPE_LABELS[exportType] || "内容";
-        exportSummary.total = requestedCount;
+        exportSummary.total = requestedCount || 0;
 
         try {
+            await savePendingExportTask({
+                type: exportType,
+                exportAll,
+                maxItems: requestedCount,
+                targetUrl
+            });
+
             await prepareExportTab(tab, exportType);
 
-            const { totalCount, effectiveTotal } = await detectExportTotal(
+            const { totalCount, effectiveTotal, isUnlimited } = await detectExportTotal(
                 tab.id,
                 exportType,
-                requestedCount
+                requestedCount,
+                exportAll
             );
 
             if (totalCount === 0) {
+                await clearExportStorage();
                 setProgressText(`当前页暂无可导出的${exportSummary.typeLabel}`);
                 setExportButtons(false);
                 showCloseProgressButton(true);
                 return;
             }
 
-            exportSummary.total = effectiveTotal;
+            exportSummary.total = Number.isFinite(effectiveTotal) ? effectiveTotal : 0;
+            await savePendingExportTask({
+                type: exportType,
+                exportAll,
+                maxItems: effectiveTotal,
+                targetUrl
+            });
 
             if (Number.isFinite(totalCount)) {
-                const progressMessage =
-                    totalCount > effectiveTotal
+                const progressMessage = exportAll
+                    ? `检测到共 ${totalCount} 条${exportSummary.typeLabel}，准备全部导出...`
+                    : totalCount > effectiveTotal
                         ? `检测到共 ${totalCount} 条${exportSummary.typeLabel}，本次将导出前 ${effectiveTotal} 条`
                         : `检测到共 ${totalCount} 条${exportSummary.typeLabel}，准备导出...`;
                 setProgressText(progressMessage);
+            } else if (isUnlimited) {
+                setProgressText(`未能读取总数，将持续导出全部${exportSummary.typeLabel}`);
             }
 
             const response = await sendTabMessageWithRetry(tab.id, {
                 action: `startExport_${exportType}`,
-                maxAnswers: effectiveTotal,
+                maxItems: effectiveTotal,
+                exportAll,
                 exportType
             });
 
@@ -414,6 +551,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         } catch (error) {
             console.error("启动导出失败:", error);
+            await clearExportStorage();
             setProgressText(`导出失败：${error.message || "无法连接到页面，请刷新后重试"}`);
             setExportButtons(false);
             showCloseProgressButton(true);
@@ -440,8 +578,17 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!response || response.success !== true) {
                 throw new Error("页面未响应，请刷新后重试");
             }
+            await clearExportStorage();
+            setProgressText("导出已停止");
+            setExportButtons(false);
+            showCloseProgressButton(false);
+
+            setTimeout(() => {
+                resetProgressUi();
+            }, 1500);
         } catch (error) {
             console.error("发送停止消息失败:", error);
+            await clearExportStorage();
             setProgressText(`停止失败：${error.message}`);
             if (elements.stopExport) {
                 elements.stopExport.disabled = false;
@@ -469,47 +616,112 @@ document.addEventListener("DOMContentLoaded", () => {
         clearExportStorage();
     }
 
+    async function getStoredExportSnapshot() {
+        const result = await storageGet([
+            EXPORT_STORAGE_KEYS.STATUS,
+            EXPORT_STORAGE_KEYS.PROGRESS,
+            EXPORT_STORAGE_KEYS.TASK
+        ]);
+        const storedStatus = result[EXPORT_STORAGE_KEYS.STATUS];
+        const storedProgress = result[EXPORT_STORAGE_KEYS.PROGRESS];
+        const storedTask = result[EXPORT_STORAGE_KEYS.TASK];
+
+        if (storedStatus?.status) {
+            return {
+                status: storedStatus.status,
+                type: storedStatus.type,
+                progress: storedProgress || {
+                    current: 0,
+                    total: storedTask?.maxItems || 0
+                }
+            };
+        }
+
+        if (storedTask?.type) {
+            return {
+                status: EXPORT_STATUS.PREPARING,
+                type: storedTask.type,
+                progress: {
+                    current: 0,
+                    total: storedTask.maxItems || 0
+                }
+            };
+        }
+
+        return null;
+    }
+
+    function applyExportSnapshot(snapshot) {
+        if (!snapshot?.status) {
+            return false;
+        }
+
+        const snapshotType = snapshot.type || getSelectedExportType();
+        exportSummary.type = snapshotType;
+        exportSummary.typeLabel = EXPORT_TYPE_LABELS[snapshotType] || "内容";
+        exportSummary.total = snapshot.progress?.total || 0;
+        exportSummary.current = snapshot.progress?.current || 0;
+        exportSummary.count = 0;
+        exportSummary.fileType = "";
+        setSelectedExportType(snapshotType);
+
+        if (snapshot.status === EXPORT_STATUS.PREPARING) {
+            setProgressVisible(true);
+            setExportButtons(true);
+            setProgressPercent(0);
+            setProgressText(`正在切换页面并准备导出${exportSummary.typeLabel}...`);
+            showCloseProgressButton(false);
+            return true;
+        }
+
+        if (
+            snapshot.status === EXPORT_STATUS.EXPORTING ||
+            snapshot.status === EXPORT_STATUS.REFRESHING
+        ) {
+            setProgressVisible(true);
+            setExportButtons(true);
+            updateProgressBar(exportSummary.current, exportSummary.total);
+            return true;
+        }
+
+        if (snapshot.status === EXPORT_STATUS.COMPLETED) {
+            exportSummary.count = exportSummary.current || exportSummary.total || 0;
+            handleExportCompleted("");
+            return true;
+        }
+
+        return false;
+    }
+
     async function restoreExportStatus() {
         const tab = await queryActiveTab();
-        if (!tab?.id || !isZhihuProfilePage(tab.url)) {
-            return;
+
+        if (tab?.id && isZhihuProfilePage(tab.url)) {
+            try {
+                const response = await sendTabMessage(tab.id, { action: "getExportStatus" });
+                if (
+                    response?.status === EXPORT_STATUS.EXPORTING ||
+                    response?.status === EXPORT_STATUS.REFRESHING ||
+                    response?.status === EXPORT_STATUS.COMPLETED
+                ) {
+                    if (applyExportSnapshot(response)) {
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error("获取页面导出状态失败，尝试从本地状态恢复:", error);
+            }
         }
 
         try {
-            const response = await sendTabMessage(tab.id, { action: "getExportStatus" });
-            if (!response?.status) {
-                return;
-            }
-
-            if (response.status === "exporting") {
-                setProgressVisible(true);
-                setExportButtons(true);
-                exportSummary.type = response.type;
-                exportSummary.typeLabel = EXPORT_TYPE_LABELS[response.type] || "内容";
-                exportSummary.total = response.progress?.total || 0;
-                exportSummary.current = response.progress?.current || 0;
-                exportSummary.count = 0;
-                exportSummary.fileType = "";
-                updateProgressBar(exportSummary.current, exportSummary.total);
-                return;
-            }
-
-            if (response.status === "completed") {
-                exportSummary.type = response.type;
-                exportSummary.typeLabel = EXPORT_TYPE_LABELS[response.type] || "内容";
-                exportSummary.total = response.progress?.total || 0;
-                exportSummary.current =
-                    response.progress?.current || response.progress?.total || 0;
-                exportSummary.count = exportSummary.current;
-                exportSummary.fileType = "";
-                handleExportCompleted("");
+            const storedSnapshot = await getStoredExportSnapshot();
+            if (applyExportSnapshot(storedSnapshot)) {
                 return;
             }
 
             resetProgressUi();
-            clearExportStorage();
         } catch (error) {
-            console.error("获取导出状态失败:", error);
+            console.error("恢复导出状态失败:", error);
         }
     }
 
@@ -559,6 +771,35 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    document.querySelectorAll('input[name="export-type"]').forEach(input => {
+        input.addEventListener("change", () => {
+            void saveExportPreferences();
+        });
+    });
+
+    if (elements.exportCountAll) {
+        elements.exportCountAll.addEventListener("change", () => {
+            updateExportCountInputState();
+            void saveExportPreferences();
+        });
+    }
+
+    if (elements.exportCountCustomMode) {
+        elements.exportCountCustomMode.addEventListener("change", () => {
+            updateExportCountInputState();
+            void saveExportPreferences();
+        });
+    }
+
+    if (elements.exportCount) {
+        elements.exportCount.addEventListener("change", () => {
+            void saveExportPreferences();
+        });
+        elements.exportCount.addEventListener("input", () => {
+            void saveExportPreferences();
+        });
+    }
+
     if (elements.stopExport) {
         elements.stopExport.addEventListener("click", () => {
             void stopExport();
@@ -605,6 +846,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    updateMessageCount();
-    void restoreExportStatus();
+    async function initializePopup() {
+        updateMessageCount();
+        await restoreExportPreferences();
+        updateExportCountInputState();
+        await restoreExportStatus();
+    }
+
+    void initializePopup();
 });

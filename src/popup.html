@@ -6,7 +6,7 @@
     <style>
         body {
             font-family: 'Microsoft YaHei', sans-serif;
-            width: 320px;
+            width: 380px;
             padding: 10px;
             margin: 0;
             box-sizing: border-box;
@@ -186,12 +186,18 @@
             background-color: #0077e6;
         }
         .notification-details {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            gap: 12px;
             margin-top: 8px;
             font-size: 11px;
             color: #666;
+            white-space: nowrap;
         }
         .notification-details > div {
             padding: 2px 0;
+            flex: 0 0 auto;
         }
         .notification-details span {
             color: #0084ff;
@@ -265,10 +271,18 @@
         </div>
         
         <div class="export-pages-setting" style="margin: 10px 0;">
-            <div style="display: flex; align-items: center; background-color: #f9f9f9; padding: 8px 12px; border-radius: 8px;">
-                <span style="font-size: 13px; color: #444; margin-right: 10px;">导出数量:</span>
-                <input type="number" id="export-count" min="1" value="100" style="width: 60px; padding: 3px 5px; border: 1px solid #ddd; border-radius: 4px;">
-                <label for="export-count" style="font-size: 13px; color: #444; margin-left: 5px;">条</label>
+            <div style="display: flex; align-items: center; flex-wrap: nowrap; gap: 8px; white-space: nowrap; background-color: #f9f9f9; padding: 8px 12px; border-radius: 8px;">
+                <span style="flex: 0 0 auto; font-size: 13px; color: #444;">导出数量:</span>
+                <label style="display: flex; align-items: center; flex: 0 0 auto; gap: 4px; font-size: 13px; color: #444; cursor: pointer;">
+                    <input type="radio" id="export-count-all" name="export-count-mode" value="all">
+                    <span>全部</span>
+                </label>
+                <label style="display: flex; align-items: center; flex: 0 0 auto; gap: 4px; font-size: 13px; color: #444; cursor: pointer;">
+                    <input type="radio" id="export-count-custom-mode" name="export-count-mode" value="custom" checked>
+                    <span>前</span>
+                    <input type="number" id="export-count" min="1" value="10" style="flex: 0 0 52px; width: 52px; padding: 3px 5px; border: 1px solid #ddd; border-radius: 4px;">
+                    <span>条</span>
+                </label>
             </div>
         </div>
         

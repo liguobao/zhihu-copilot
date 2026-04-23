@@ -36,7 +36,8 @@
     }
   ],
   "host_permissions": [
-    "https://*.zhihu.com/*"
+    "https://*.zhihu.com/*",
+    "https://*.zhimg.com/*"
   ],
   "icons": {
     "16": "img/zhihu-logo_16.png",

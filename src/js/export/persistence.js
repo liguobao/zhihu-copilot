@@ -79,6 +79,15 @@
       });
     },
 
+    async getPendingTask() {
+      const result = await runtime.chromeStorage.get(STORAGE_KEYS.EXPORT_TASK);
+      return result[STORAGE_KEYS.EXPORT_TASK] || null;
+    },
+
+    async clearPendingTask() {
+      await runtime.chromeStorage.remove(STORAGE_KEYS.EXPORT_TASK);
+    },
+
     async getRuntimeSnapshot() {
       // 这里把运行时状态和进度打包返回，popup 恢复 UI、页面恢复导出都靠它。
       const result = await runtime.chromeStorage.get([

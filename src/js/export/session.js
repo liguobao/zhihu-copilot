@@ -14,7 +14,7 @@
       // 一个 session 对应一次完整的导出任务，负责串起采集、存储、进度和收尾。
       this.type = type;
       this.config = TYPE_CONFIGS[type];
-      this.maxCount = maxCount;
+      this.maxCount = Number.isFinite(maxCount) && maxCount > 0 ? Math.floor(maxCount) : null;
       this.currentCount = options.currentCount || 0;
       this.active = true;
       this.idleRounds = 0;
@@ -31,11 +31,20 @@
       this.active = false;
     }
 
+    hasReachedLimit() {
+      return Number.isFinite(this.maxCount) && this.currentCount >= this.maxCount;
+    }
+
     async initialize() {
       const storedData = await exportPersistence.loadTypeData(this.type);
       this.items = storedData.items;
       this.itemIds = new Set(storedData.ids.map(String));
-      this.currentCount = Math.min(this.currentCount || this.items.length, this.maxCount);
+      const targetCount = this.currentCount || this.items.length;
+      this.currentCount = this.hasReachedLimit()
+        ? this.maxCount
+        : Number.isFinite(this.maxCount)
+          ? Math.min(targetCount, this.maxCount)
+          : targetCount;
 
       await this.persistRuntime(EXPORT_STATUS.EXPORTING);
     }
@@ -56,7 +65,7 @@
     notifyProgress() {
       chrome.runtime.sendMessage({
         action: "updateProgress",
-        current: Math.min(this.currentCount, this.maxCount),
+        current: this.currentCount,
         total: this.maxCount
       });
     }
@@ -70,7 +79,7 @@
           break;
         }
 
-        if (this.currentCount >= this.maxCount) {
+        if (this.hasReachedLimit()) {
           console.log("已达到最大导出数量，停止保存");
           break;
         }
@@ -101,12 +110,14 @@
       // 先展开，再读正文，避免只导出截断内容。
       await this.collector.expandItem(item, title);
 
-      const content = this.collector.getContentElement(item)?.innerText?.trim() || "";
+      const contentElement = this.collector.getContentElement(item);
+      const { content, images } = runtime.extractMarkdownContentFromElement(contentElement);
       const record = this.config.createRecord({
         title,
         id,
         content,
-        url: this.config.buildUrl(id)
+        url: this.config.buildUrl(id),
+        images
       });
 
       this.itemIds.add(id);
@@ -149,7 +160,7 @@
       const initialVisibleCount = await this.collector.waitForVisibleItems();
       console.log(`导出开始，首屏可见${this.config.itemLabel}数量:`, initialVisibleCount);
 
-      while (this.isActive() && this.currentCount < this.maxCount) {
+      while (this.isActive() && !this.hasReachedLimit()) {
         console.log("current_count:", this.currentCount);
         await exportPersistence.saveRuntimeProgress(this.currentCount, this.maxCount);
 
@@ -158,7 +169,7 @@
           break;
         }
 
-        if (this.currentCount >= this.maxCount) {
+        if (this.hasReachedLimit()) {
           console.log("已达到最大条数，结束导出");
           break;
         }
@@ -177,7 +188,11 @@
     }
 
     async handleCompleted() {
-      await exportPersistence.saveRuntimeProgress(this.currentCount, this.maxCount);
+      await exportPersistence.clearPendingTask();
+      await exportPersistence.saveRuntimeProgress(
+        this.currentCount,
+        this.maxCount || this.currentCount
+      );
       await fileExporter.exportMarkdown(this.type, this.items);
       await exportPersistence.clearTypeData(this.type);
       await exportPersistence.saveRuntimeStatus(EXPORT_STATUS.COMPLETED, this.type);
@@ -188,6 +203,7 @@
     }
 
     async handleStopped() {
+      await exportPersistence.clearPendingTask();
       await exportPersistence.clearTypeData(this.type);
       await exportPersistence.clearRuntimeState();
 
@@ -198,6 +214,7 @@
 
     async handleError(error) {
       console.error("导出过程中出错:", error);
+      await exportPersistence.clearPendingTask();
       await exportPersistence.clearTypeData(this.type);
       await exportPersistence.clearRuntimeState();
 

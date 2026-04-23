@@ -17,11 +17,13 @@
       IDS: "zhihu_pin_ids"
     },
     EXPORT_STATUS: "zhihu_export_status",
-    EXPORT_PROGRESS: "zhihu_export_progress"
+    EXPORT_PROGRESS: "zhihu_export_progress",
+    EXPORT_TASK: "zhihu_export_task"
   };
 
   runtime.EXPORT_STATUS = {
     IDLE: "idle",
+    PREPARING: "preparing",
     EXPORTING: "exporting",
     REFRESHING: "refreshing",
     COMPLETED: "completed",
@@ -73,6 +75,36 @@
     return (href || "")
       .replace(/^https?:\/\//, "")
       .replace(/^\/\//, "");
+  };
+
+  runtime.resolveAbsoluteUrl = function resolveAbsoluteUrl(href) {
+    if (!href) {
+      return "";
+    }
+
+    try {
+      return new URL(href, window.location.href).href;
+    } catch (error) {
+      console.warn("解析绝对地址失败:", error, href);
+      return "";
+    }
+  };
+
+  runtime.extractProfileUserIdFromUrl = function extractProfileUserIdFromUrl(url = window.location.href) {
+    try {
+      const parsedUrl = new URL(url, window.location.href);
+      const segments = parsedUrl.pathname.split("/").filter(Boolean);
+      const peopleIndex = segments.indexOf("people");
+
+      if (peopleIndex === -1 || !segments[peopleIndex + 1]) {
+        return "";
+      }
+
+      return decodeURIComponent(segments[peopleIndex + 1]);
+    } catch (error) {
+      console.warn("从 URL 提取用户 ID 失败:", error, url);
+      return "";
+    }
   };
 
   runtime.parseZhihuCountText = function parseZhihuCountText(text, label = "") {
@@ -146,6 +178,93 @@
 
   runtime.sanitizeFileName = function sanitizeFileName(fileName) {
     return fileName.replace(/[\\/:*?"<>|]/g, "_");
+  };
+
+  runtime.createImagePlaceholder = function createImagePlaceholder(index) {
+    return `{{ZH_IMAGE_${index}}}`;
+  };
+
+  runtime.parseSrcSet = function parseSrcSet(srcset) {
+    const candidates = String(srcset || "")
+      .split(",")
+      .map(item => item.trim().split(/\s+/)[0])
+      .filter(Boolean);
+
+    return candidates.length ? candidates[candidates.length - 1] : "";
+  };
+
+  runtime.extractImageFromNode = function extractImageFromNode(imageNode) {
+    if (!imageNode) {
+      return null;
+    }
+
+    const rawUrl =
+      imageNode.getAttribute("data-original")
+      || imageNode.getAttribute("data-actualsrc")
+      || imageNode.getAttribute("data-src")
+      || imageNode.getAttribute("data-default-watermark-src")
+      || imageNode.getAttribute("data-watermark-src")
+      || imageNode.currentSrc
+      || runtime.parseSrcSet(imageNode.getAttribute("srcset"))
+      || imageNode.getAttribute("src");
+
+    const url = runtime.resolveAbsoluteUrl(rawUrl);
+    if (!url || url.startsWith("data:")) {
+      return null;
+    }
+
+    return {
+      url,
+      alt: imageNode.getAttribute("alt") || ""
+    };
+  };
+
+  runtime.extractImagesFromElement = function extractImagesFromElement(element) {
+    if (!element) {
+      return [];
+    }
+
+    return Array.from(element.querySelectorAll("img"))
+      .map(imageNode => runtime.extractImageFromNode(imageNode))
+      .filter(Boolean);
+  };
+
+  runtime.normalizeMarkdownContent = function normalizeMarkdownContent(content) {
+    return String(content || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n[ \t]+/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  };
+
+  runtime.extractMarkdownContentFromElement = function extractMarkdownContentFromElement(element) {
+    if (!element) {
+      return {
+        content: "",
+        images: []
+      };
+    }
+
+    const clone = element.cloneNode(true);
+    const images = [];
+
+    for (const imageNode of Array.from(clone.querySelectorAll("img"))) {
+      const image = runtime.extractImageFromNode(imageNode);
+      if (!image) {
+        imageNode.remove();
+        continue;
+      }
+
+      const placeholder = runtime.createImagePlaceholder(images.length);
+      images.push(image);
+      imageNode.replaceWith(document.createTextNode(`\n\n${placeholder}\n\n`));
+    }
+
+    return {
+      content: runtime.normalizeMarkdownContent(clone.innerText || clone.textContent || ""),
+      images
+    };
   };
 
   runtime.createTimestamp = function createTimestamp() {
