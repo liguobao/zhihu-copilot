@@ -31,13 +31,16 @@
         "js/export/collector.js",
         "js/export/file_exporter.js",
         "js/export/session.js",
-        "js/dump_data.js"
+        "js/dump_data.js",
+        "js/mindmap.js"
       ]
     }
   ],
   "host_permissions": [
     "https://*.zhihu.com/*",
-    "https://*.zhimg.com/*"
+    "https://*.zhimg.com/*",
+    "http://zc.r2049.cn/*",
+    "https://zc.r2049.cn/*"
   ],
   "icons": {
     "16": "img/zhihu-logo_16.png",

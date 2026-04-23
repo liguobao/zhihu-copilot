@@ -145,10 +145,39 @@
             border-top: 1px solid #eee;
             padding-top: 15px;
         }
-        .export-section h2 {
+        .tool-section {
+            margin-top: 15px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        .export-section h2,
+        .tool-section h2 {
             font-size: 14px;
             margin: 0 0 10px 0;
             color: #444;
+        }
+        .mindmap-btn {
+            background-color: #0084ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 15px;
+            font-size: 13px;
+            cursor: pointer;
+            width: 100%;
+        }
+        .mindmap-btn:hover {
+            background-color: #0077e6;
+        }
+        .mindmap-status {
+            display: none;
+            margin-top: 8px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            background-color: #f0f7ff;
+            color: #506070;
+            font-size: 12px;
+            line-height: 1.5;
         }
         .export-options {
             margin-bottom: 10px;
@@ -251,6 +280,12 @@
     <a href="https://www.zhihu.com/appview/creator/milestone" class="menu-item" id="milestone">
         <i>🏆</i> 里程碑
     </a>
+
+    <div class="tool-section">
+        <h2>当前页面工具</h2>
+        <button id="generate-mindmap" class="mindmap-btn" type="button">生成当前页思维导图</button>
+        <div id="mindmap-status" class="mindmap-status"></div>
+    </div>
     
     <div class="export-section">
         <h2>内容导出</h2>

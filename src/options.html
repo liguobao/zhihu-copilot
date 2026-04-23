@@ -44,6 +44,25 @@
             border: 1px solid #ddd;
             border-radius: 3px;
         }
+        .option input[type="text"],
+        .option input[type="password"],
+        .option select {
+            width: 100%;
+            padding: 7px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 13px;
+        }
+        .option select {
+            background-color: #fff;
+        }
+        .hint {
+            margin-top: 6px;
+            color: #777;
+            font-size: 12px;
+            line-height: 1.5;
+        }
         .save-btn {
             background-color: #0084ff;
             color: white;
@@ -108,6 +127,34 @@
             <label><i class="icon">🔄</i> 检查消息间隔（分钟）：
                 <input type="number" id="poll-interval" min="1" max="60">
             </label>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>思维导图设置</h2>
+        <div class="option">
+            <label for="mindmap-api-url">Dify API 地址</label>
+            <input type="text" id="mindmap-api-url" placeholder="https://zc.r2049.cn/v1">
+            <div class="hint">填写 Dify API 根地址，通常以 /v1 结尾。</div>
+        </div>
+        <div class="option">
+            <label for="mindmap-api-key">Dify API Key</label>
+            <input type="password" id="mindmap-api-key" autocomplete="off">
+            <div class="hint">Key 只保存在当前浏览器扩展的本地存储中。</div>
+        </div>
+        <div class="option">
+            <label for="mindmap-app-type">Dify 应用类型</label>
+            <select id="mindmap-app-type">
+                <option value="auto">自动识别</option>
+                <option value="chat">对话应用</option>
+                <option value="completion">文本生成应用</option>
+                <option value="workflow">工作流</option>
+            </select>
+        </div>
+        <div class="option">
+            <label for="mindmap-max-content-chars">最大正文字符数</label>
+            <input type="number" id="mindmap-max-content-chars" min="2000" max="50000" step="1000">
+            <div class="hint">正文过长时会截断后发送给 Dify，默认 18000。</div>
         </div>
     </div>
     
