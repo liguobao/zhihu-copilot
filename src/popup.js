@@ -57,8 +57,6 @@ document.addEventListener("DOMContentLoaded", () => {
         writeArticle: document.getElementById("write-article"),
         creatorCenter: document.getElementById("creator-center"),
         milestone: document.getElementById("milestone"),
-        generateMindMap: document.getElementById("generate-mindmap"),
-        mindMapStatus: document.getElementById("mindmap-status"),
         exportCountAll: document.getElementById("export-count-all"),
         exportCountCustomMode: document.getElementById("export-count-custom-mode"),
         exportCount: document.getElementById("export-count"),
@@ -191,12 +189,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return /^https:\/\/(?:[^/]+\.)?zhihu\.com\/people\//.test(url || "");
     }
 
-    function isZhihuMindMapPage(url) {
-        return /^https:\/\/www\.zhihu\.com\/question\/\d+\/answer\/\d+/.test(url || "") ||
-            /^https:\/\/zhuanlan\.zhihu\.com\/p\/\d+/.test(url || "") ||
-            /^https:\/\/www\.zhihu\.com\/p\/\d+/.test(url || "");
-    }
-
     function normalizeProfileBaseUrl(url) {
         return String(url || "")
             .split(/[?#]/)[0]
@@ -271,54 +263,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         throw lastError || new Error("页面消息发送失败");
-    }
-
-    function setMindMapStatus(message, isError = false) {
-        if (!elements.mindMapStatus) {
-            return;
-        }
-
-        elements.mindMapStatus.textContent = message || "";
-        elements.mindMapStatus.style.display = message ? "block" : "none";
-        elements.mindMapStatus.style.backgroundColor = isError ? "#fff2f0" : "#f0f7ff";
-        elements.mindMapStatus.style.color = isError ? "#a33a34" : "#506070";
-    }
-
-    async function injectMindMapScript(tabId) {
-        await chrome.scripting.executeScript({
-            target: { tabId },
-            files: ["js/mindmap.js"]
-        });
-    }
-
-    async function openMindMapForCurrentPage() {
-        setMindMapStatus("正在打开页面思维导图...");
-
-        const tab = await queryActiveTab();
-        if (!tab?.id || !isZhihuMindMapPage(tab.url)) {
-            setMindMapStatus("请先打开知乎回答详情页或专栏文章页", true);
-            return;
-        }
-
-        try {
-            let response = null;
-            try {
-                response = await sendTabMessage(tab.id, { action: "openMindMap" });
-            } catch (error) {
-                await injectMindMapScript(tab.id);
-                await sleep(200);
-                response = await sendTabMessageWithRetry(tab.id, { action: "openMindMap" }, 1);
-            }
-
-            if (response?.success === false) {
-                throw new Error(response.error || "页面未能打开思维导图");
-            }
-
-            setMindMapStatus("已在当前页面打开思维导图面板");
-        } catch (error) {
-            console.error("打开思维导图失败:", error);
-            setMindMapStatus(`打开失败：${error.message || "请刷新页面后重试"}`, true);
-        }
     }
 
     function clampProgress(current, total) {
@@ -791,12 +735,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.refreshButton) {
         elements.refreshButton.addEventListener("click", () => {
             openTab(ZHIHU_URLS.HOME);
-        });
-    }
-
-    if (elements.generateMindMap) {
-        elements.generateMindMap.addEventListener("click", () => {
-            void openMindMapForCurrentPage();
         });
     }
 
