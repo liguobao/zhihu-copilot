@@ -70,6 +70,15 @@
       });
     }
 
+    notifyProcessing() {
+      chrome.runtime.sendMessage({
+        action: "exportProcessing",
+        current: this.currentCount,
+        total: this.maxCount || this.currentCount,
+        type: this.type
+      });
+    }
+
     async collectVisibleItems() {
       let savedCount = 0;
 
@@ -112,12 +121,17 @@
 
       const contentElement = this.collector.getContentElement(item);
       const { content, images } = runtime.extractMarkdownContentFromElement(contentElement);
+      const supplementalImages = this.collectSupplementalImages(item, contentElement);
+      const mergedImages = this.mergeImages(
+        images,
+        supplementalImages
+      );
       const record = this.config.createRecord({
         title,
         id,
         content,
         url: this.config.buildUrl(id),
-        images
+        images: mergedImages
       });
 
       this.itemIds.add(id);
@@ -130,6 +144,93 @@
       console.log(`${this.config.itemLabel}:${id} 已保存`);
       this.notifyProgress();
       return true;
+    }
+
+    collectSupplementalImages(item, contentElement) {
+      if (!Array.isArray(this.config.supplementalImageSelectors)) {
+        return [];
+      }
+
+      const containers = new Set();
+      for (const selector of this.config.supplementalImageSelectors) {
+        item.querySelectorAll(selector).forEach(container => containers.add(container));
+      }
+
+      const images = [];
+      for (const container of containers) {
+        images.push(
+          ...runtime.extractImagesFromElement(container, {
+            filter: imageNode => this.isSupplementalContentImage(imageNode, contentElement)
+          })
+        );
+      }
+
+      return images;
+    }
+
+    isSupplementalContentImage(imageNode, contentElement) {
+      if (!imageNode || contentElement?.contains(imageNode)) {
+        return false;
+      }
+
+      if (
+        imageNode.closest(
+          [
+            ".Avatar",
+            ".AuthorInfo",
+            ".ContentItem-actions",
+            ".ContentItem-meta",
+            ".PinItem-author",
+            ".RichContent-actions",
+            ".UserLink",
+            "button"
+          ].join(",")
+        )
+      ) {
+        return false;
+      }
+
+      const width = Number(
+        imageNode.getAttribute("data-rawwidth") ||
+        imageNode.getAttribute("width") ||
+        imageNode.naturalWidth ||
+        imageNode.clientWidth
+      );
+      const height = Number(
+        imageNode.getAttribute("data-rawheight") ||
+        imageNode.getAttribute("height") ||
+        imageNode.naturalHeight ||
+        imageNode.clientHeight
+      );
+
+      if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+        return Math.max(width, height) >= 80;
+      }
+
+      return true;
+    }
+
+    mergeImages(...imageGroups) {
+      const mergedImages = [];
+      const seenUrls = new Set();
+
+      for (const image of imageGroups.flat()) {
+        const normalizedUrl = this.normalizeImageUrlForDedupe(image?.url);
+        if (!normalizedUrl || seenUrls.has(normalizedUrl)) {
+          continue;
+        }
+
+        seenUrls.add(normalizedUrl);
+        mergedImages.push(image);
+      }
+
+      return mergedImages;
+    }
+
+    normalizeImageUrlForDedupe(url) {
+      return String(url || "")
+        .split(/[?#]/)[0]
+        .replace(/(\/v2-[^/_]+)_[^/.]+(\.[a-zA-Z0-9]+)$/i, "$1$2");
     }
 
     updateIdleRounds(savedCount, scrollResult) {
@@ -193,6 +294,8 @@
         this.currentCount,
         this.maxCount || this.currentCount
       );
+      await exportPersistence.saveRuntimeStatus(EXPORT_STATUS.PROCESSING, this.type);
+      this.notifyProcessing();
       await fileExporter.exportMarkdown(this.type, this.items);
       await exportPersistence.clearTypeData(this.type);
       await exportPersistence.saveRuntimeStatus(EXPORT_STATUS.COMPLETED, this.type);

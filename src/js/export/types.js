@@ -45,6 +45,11 @@
       profilePath: "/posts",
       tabLabel: "文章",
       contentSelectors: [".RichContent-inner"],
+      supplementalImageSelectors: [
+        ".RichContent-cover",
+        ".RichContent-cover-inner",
+        'meta[itemprop="image"]'
+      ],
       needsExpand: true,
       buildUrl: (id) => `https://zhuanlan.zhihu.com/p/${id}`,
       getItemMeta: (item) => {
@@ -76,8 +81,15 @@
       itemLabel: "想法",
       profilePath: "/pins",
       tabLabel: "想法",
-      // 想法页存在两种正文容器，按顺序尝试即可兼容新旧结构。
-      contentSelectors: [".RichContent-inner", ".RichContent"],
+      // 想法配图常作为正文容器的兄弟节点挂在 RichContent 下，优先取外层。
+      contentSelectors: [".RichContent", ".RichContent-inner", ".RichText"],
+      supplementalImageSelectors: [
+        ".PinItem-remainContentRichText",
+        "[data-thumbnail-list-container]",
+        "[data-thumbnail-image]",
+        ".RichContent-cover",
+        ".RichContent-cover-inner"
+      ],
       needsExpand: false,
       buildUrl: (id) => `https://www.zhihu.com/pin/${id}`,
       getItemMeta: (item) => ({

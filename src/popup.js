@@ -22,6 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
         PREPARING: "preparing",
         EXPORTING: "exporting",
         REFRESHING: "refreshing",
+        PROCESSING: "processing",
         COMPLETED: "completed"
     };
 
@@ -295,6 +296,28 @@ document.addEventListener("DOMContentLoaded", () => {
         );
         exportSummary.current = current;
         exportSummary.total = hasTotal ? total : 0;
+        showCloseProgressButton(false);
+    }
+
+    function showExportProcessing(current, total) {
+        const hasTotal = Number.isFinite(total) && total > 0;
+        const displayTotal = hasTotal ? total : current;
+        const countText = displayTotal
+            ? `${current || displayTotal}/${displayTotal}`
+            : `${current || 0}`;
+
+        setProgressVisible(true);
+        setProgressPercent(100);
+        setProgressText(`已采集 ${countText} 条，正在整理并生成导出文件...`, 100);
+
+        if (elements.startExport) {
+            elements.startExport.disabled = true;
+        }
+
+        if (elements.stopExport) {
+            elements.stopExport.style.display = "none";
+        }
+
         showCloseProgressButton(false);
     }
 
@@ -684,6 +707,11 @@ document.addEventListener("DOMContentLoaded", () => {
             return true;
         }
 
+        if (snapshot.status === EXPORT_STATUS.PROCESSING) {
+            showExportProcessing(exportSummary.current, exportSummary.total);
+            return true;
+        }
+
         if (snapshot.status === EXPORT_STATUS.COMPLETED) {
             exportSummary.count = exportSummary.current || exportSummary.total || 0;
             handleExportCompleted("");
@@ -702,6 +730,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (
                     response?.status === EXPORT_STATUS.EXPORTING ||
                     response?.status === EXPORT_STATUS.REFRESHING ||
+                    response?.status === EXPORT_STATUS.PROCESSING ||
                     response?.status === EXPORT_STATUS.COMPLETED
                 ) {
                     if (applyExportSnapshot(response)) {
@@ -809,6 +838,13 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.runtime.onMessage.addListener(request => {
         if (request.action === "updateProgress") {
             updateProgressBar(request.current || 0, request.total || 0);
+            return;
+        }
+
+        if (request.action === "exportProcessing") {
+            exportSummary.current = request.current || exportSummary.current || 0;
+            exportSummary.total = request.total || exportSummary.total || exportSummary.current;
+            showExportProcessing(exportSummary.current, exportSummary.total);
             return;
         }
 

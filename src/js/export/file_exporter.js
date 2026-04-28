@@ -185,9 +185,12 @@
         const { title, id, content, url, images } = config.readRecord(item);
         const fileName = `${id}_${sanitizeFileName(title)}.md`;
         const exportedImages = await this.appendImagesToZip(zip, id, images);
-        const hasInlineImages = exportedImages.some((image, index) =>
-          String(content || "").includes(createImagePlaceholder(index))
-        );
+        const inlineImageIndexes = new Set();
+        exportedImages.forEach((image, index) => {
+          if (String(content || "").includes(createImagePlaceholder(index))) {
+            inlineImageIndexes.add(index);
+          }
+        });
         const bodyContent = this.replaceImagePlaceholders(content, exportedImages);
         const lines = [
           `# ${title}`,
@@ -200,10 +203,11 @@
           ""
         ];
 
-        if (!hasInlineImages && exportedImages.length > 0) {
+        const appendixImages = exportedImages.filter((image, index) => !inlineImageIndexes.has(index));
+        if (appendixImages.length > 0) {
           lines.push("## 图片", "");
 
-          for (const [index, image] of exportedImages.entries()) {
+          for (const [index, image] of appendixImages.entries()) {
             lines.push(this.formatMarkdownImage(image, `图片${index + 1}`), "");
           }
         }

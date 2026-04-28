@@ -26,6 +26,7 @@
     PREPARING: "preparing",
     EXPORTING: "exporting",
     REFRESHING: "refreshing",
+    PROCESSING: "processing",
     COMPLETED: "completed",
     STOPPED: "stopped"
   };
@@ -198,15 +199,22 @@
       return null;
     }
 
+    const pictureSource = imageNode.closest("picture")?.querySelector("source[srcset], source[data-srcset]");
     const rawUrl =
       imageNode.getAttribute("data-original")
       || imageNode.getAttribute("data-actualsrc")
+      || imageNode.getAttribute("data-rawsrc")
+      || imageNode.getAttribute("data-lazy-src")
       || imageNode.getAttribute("data-src")
+      || runtime.parseSrcSet(imageNode.getAttribute("data-srcset"))
       || imageNode.getAttribute("data-default-watermark-src")
       || imageNode.getAttribute("data-watermark-src")
-      || imageNode.currentSrc
       || runtime.parseSrcSet(imageNode.getAttribute("srcset"))
-      || imageNode.getAttribute("src");
+      || runtime.parseSrcSet(pictureSource?.getAttribute("srcset"))
+      || runtime.parseSrcSet(pictureSource?.getAttribute("data-srcset"))
+      || imageNode.currentSrc
+      || imageNode.getAttribute("src")
+      || imageNode.getAttribute("content");
 
     const url = runtime.resolveAbsoluteUrl(rawUrl);
     if (!url || url.startsWith("data:")) {
@@ -219,12 +227,23 @@
     };
   };
 
-  runtime.extractImagesFromElement = function extractImagesFromElement(element) {
+  runtime.extractImagesFromElement = function extractImagesFromElement(element, options = {}) {
     if (!element) {
       return [];
     }
 
-    return Array.from(element.querySelectorAll("img"))
+    const shouldInclude =
+      typeof options.filter === "function"
+        ? options.filter
+        : () => true;
+
+    const imageNodes = [
+      ...(element.matches?.('img, meta[itemprop="image"]') ? [element] : []),
+      ...Array.from(element.querySelectorAll('img, meta[itemprop="image"]'))
+    ];
+
+    return imageNodes
+      .filter(shouldInclude)
       .map(imageNode => runtime.extractImageFromNode(imageNode))
       .filter(Boolean);
   };
